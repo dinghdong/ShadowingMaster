@@ -35,8 +35,14 @@ test("生词本跳回原句", async ({ page, request }) => {
   await expect(page.getByText("我的生词本")).toBeVisible();
   await page.getByText("↩ 回到原句").click();
 
-  // 落在跟读页，当前句 = 第 6 句（index 5，主色边框）
+  // 落在跟读页，当前句 = 第 6 句（index 5，主色边框）；进页默认自动播放，先冻结再断言
   await expect(page.locator("video")).toBeVisible();
+  await page.waitForFunction(
+    () => { const v = document.querySelector("video"); return v && v.currentTime > 0; },
+    undefined,
+    { timeout: 8000 },
+  ).catch(() => {});
+  await page.locator("video").evaluate((v: HTMLVideoElement) => v.pause());
   await expect(page.locator("#sent-5")).toBeVisible();
   const border = await page.locator("#sent-5").evaluate((el) => getComputedStyle(el).borderColor);
   expect(border).toBe("rgb(255, 127, 80)");

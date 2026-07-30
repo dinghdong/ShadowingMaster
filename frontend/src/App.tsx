@@ -37,12 +37,8 @@ function LoginPage(p: AppState) {
 export default function App() {
   const p = useApp();
 
-  // 进入跟读页 / 切句：播放头跳到当前句起点并播放（浏览器自动播放策略拦截时静默，用户点视频即可播）
-  useEffect(() => {
-    const s = p.currentSentence;
-    if (p.page !== "player" || !s) return;
-    p.playFrom(s.start_time, s.end_time);
-  }, [p.page, p.currentIndex, p.sentences]); // eslint-disable-line react-hooks/exhaustive-deps
+  // （连续播放模型）进页自动播放由 video onLoadedMetadata → p.onVideoLoaded 完成；
+  // 切句/跳句由 p.jumpToSentence 显式 seek；高亮跟随播放头（p.handleTimeUpdate）
 
   // 倍速同步到 video 元素
   useEffect(() => {
@@ -140,18 +136,13 @@ export default function App() {
               poster={mediaUrl(p.currentVideo.thumbnail_url)}
               playsInline
               style={{ width: "100%", height: "100%" }}
-              onClick={(e) => { const v = e.currentTarget; v.paused ? v.play().catch(() => {}) : v.pause(); }}
+              onClick={p.togglePlay}
+              onLoadedMetadata={p.onVideoLoaded}
+              onPlay={() => p.setIsPlaying(true)}
+              onPause={() => p.setIsPlaying(false)}
               onTimeUpdate={(e) => {
                 const v = e.currentTarget;
-                const end = p.playEndRef.current;
-                if (v.paused || end == null || v.currentTime < end) return;
-                // 单句循环：回到当前句起点重播（跟读录音期间抑制）
-                if (p.loopSingleRef.current && !p.suppressLoopRef.current && p.currentSentence) {
-                  v.currentTime = p.currentSentence.start_time;
-                  v.play().catch(() => {});
-                } else {
-                  v.pause();
-                }
+                p.handleTimeUpdate(v.currentTime, v.paused);
               }}
             />
           ) : (
@@ -171,7 +162,7 @@ export default function App() {
           const isCurrent = idx === p.currentIndex;
           const tokens = tokenize(s.english_text);
           return (
-            <div key={s.id} id={`sent-${idx}`} onClick={() => p.goSentence(idx)} style={{ background: isCurrent ? color.primarySoft : idx < p.currentIndex ? color.readBg : color.card, borderRadius: radius.lg, padding: space.md + 2, border: isCurrent ? `2px solid ${color.primary}` : `1px solid ${color.border}`, cursor: "pointer" }}>
+            <div key={s.id} id={`sent-${idx}`} onClick={() => p.jumpToSentence(idx)} style={{ background: isCurrent ? color.primarySoft : idx < p.currentIndex ? color.readBg : color.card, borderRadius: radius.lg, padding: space.md + 2, border: isCurrent ? `2px solid ${color.primary}` : `1px solid ${color.border}`, cursor: "pointer" }}>
               {(p.subtitleMode === "english" || p.subtitleMode === "both") && (
                 <div style={{ fontSize: FS.sentence, color: color.text, lineHeight: font.lineHeight.sentence, marginBottom: s.chinese_text && p.subtitleMode === "both" ? 6 : 0 }}>
                   {tokens.map((t, i) => (
@@ -206,8 +197,7 @@ export default function App() {
       </div>
 
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: space.sm, padding: `10px ${space.md}px`, background: "rgba(255,248,240,0.95)", backdropFilter: "blur(8px)", borderTop: `1px solid ${color.border}` }}>
-        <button aria-label="prev-sentence" onClick={() => p.goSentence(p.currentIndex - 1)} style={{ width: 44, height: 40, borderRadius: radius.md, border: `1px solid ${color.border}`, background: color.card, fontFamily: FF, fontSize: FS.body, color: color.text, cursor: "pointer" }}>⏮</button>
-        <button aria-label="next-sentence" onClick={() => p.goSentence(p.currentIndex + 1)} style={{ width: 44, height: 40, borderRadius: radius.md, border: `1px solid ${color.border}`, background: color.card, fontFamily: FF, fontSize: FS.body, color: color.text, cursor: "pointer" }}>⏭</button>
+        <button aria-label="play-pause" onClick={p.togglePlay} style={{ width: 44, height: 40, borderRadius: radius.md, border: `1px solid ${color.border}`, background: color.card, fontFamily: FF, fontSize: FS.body, color: color.text, cursor: "pointer" }}>{p.isPlaying ? "⏸" : "▶"}</button>
         <button onClick={p.startShadowing} disabled={p.isRecording} style={{ padding: "10px 22px", borderRadius: radius.pill, border: "none", fontFamily: FF, background: p.isRecording ? color.hardWord : color.primary, color: "#fff", fontSize: FS.secondary, fontWeight: FW.bold, cursor: p.isRecording ? "not-allowed" : "pointer" }}>{p.isRecording ? "🎙 录音中..." : "🎤 跟读"}</button>
         <button aria-label="loop-single" onClick={() => p.setLoopSingle(!p.loopSingle)} style={{ width: 44, height: 40, borderRadius: radius.md, border: "none", background: p.loopSingle ? color.primary : color.card, color: p.loopSingle ? "#fff" : color.textLight, fontFamily: FF, fontSize: FS.tiny, fontWeight: FW.semibold, cursor: p.loopSingle ? "pointer" : "pointer", outline: p.loopSingle ? "none" : `1px solid ${color.border}` }}>单句</button>
         <button aria-label="rate-toggle" onClick={p.cycleRate} style={{ width: 52, height: 40, borderRadius: radius.md, border: `1px solid ${color.border}`, background: color.card, fontFamily: FF, fontSize: FS.tiny, fontWeight: FW.semibold, color: p.rate === 1 ? color.textLight : color.primary, cursor: "pointer" }}>{p.rate}x</button>

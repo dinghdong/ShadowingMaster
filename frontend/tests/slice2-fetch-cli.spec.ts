@@ -14,8 +14,8 @@ test("爬取的新视频可浏览可播放", async ({ page }) => {
   // 字幕气泡已渲染（含入库句子的文本）
   await expect(page.getByText("Lesson one where are you from")).toBeVisible();
 
-  // 切句后播放头跳转
-  await page.getByLabel("next-sentence").click();
+  // 点句气泡跳句：播放头跳到该句起点
+  await page.locator("#sent-1").click();
   await page.waitForFunction(
     () => { const v = document.querySelector("video"); return v && v.currentTime > 15; },
     { timeout: 10_000 },

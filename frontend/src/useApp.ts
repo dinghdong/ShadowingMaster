@@ -55,7 +55,13 @@ export function useApp() {
             if (rec) idx = Math.max(0, Math.min(data.sentences.length - 1, rec.last_sentence_index));
           } catch { /* 静默 */ }
         }
-        if (!cancelled) setCurrentIndex(idx);
+        if (!cancelled) {
+          setCurrentIndex(idx);
+          // 进页默认连续自动播放：元数据已就绪（视频被缓存）时直接起播，
+          // 否则等 onLoadedMetadata 触发；两条路径都走 tryStartPendingPlay，避免竞态
+          pendingPlayRef.current = data.sentences[idx]?.start_time ?? 0;
+          tryStartPendingPlay();
+        }
       });
       return () => { cancelled = true; };
     }
@@ -84,18 +90,21 @@ export function useApp() {
 
   const reportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 静默上报播放位置（防抖 800ms；未登录跳过）
+  const reportPosition = (idx: number) => {
+    if (!currentVideoId || !localStorage.getItem("token")) return;
+    if (reportTimerRef.current) clearTimeout(reportTimerRef.current);
+    reportTimerRef.current = setTimeout(() => {
+      saveProgress(currentVideoId, idx).catch(() => {});
+    }, 800);
+  };
+
   const goSentence = (idx: number) => {
     const clamped = Math.max(0, Math.min(sentences.length - 1, idx));
     setCurrentIndex(clamped);
     setRecognizedText("");
     setWordMatches([]);
-    // 静默上报播放位置（防抖 800ms；未登录跳过）
-    if (currentVideoId && localStorage.getItem("token")) {
-      if (reportTimerRef.current) clearTimeout(reportTimerRef.current);
-      reportTimerRef.current = setTimeout(() => {
-        saveProgress(currentVideoId, clamped).catch(() => {});
-      }, 800);
-    }
+    reportPosition(clamped);
   };
 
   const handleLogin = async (email: string, password: string) => {
@@ -112,9 +121,11 @@ export function useApp() {
 
   const handleLogout = () => { localStorage.removeItem("token"); setUser(null); setPage("list"); };
 
-  // ── 播放控制（精修片）──
-  const playEndRef = useRef<number | null>(null);     // 本次播放应在何时自动停（句末）
+  // ── 播放控制（连续自动播放模型）──
+  const playEndRef = useRef<number | null>(null);     // 单句播放的自动停点；null = 连续播放
   const suppressLoopRef = useRef(false);              // 跟读录音期间抑制单句循环
+  const pendingPlayRef = useRef<number | null>(null); // 进页后待自动播放的起点（位置记忆/跳原句的句位）
+  const [isPlaying, setIsPlaying] = useState(false);
   const [loopSingle, setLoopSingle] = useState(false);
   const loopSingleRef = useRef(false);
   useEffect(() => { loopSingleRef.current = loopSingle; }, [loopSingle]);
@@ -131,10 +142,73 @@ export function useApp() {
     v.play().catch(() => {});
   };
 
-  // 单句播放：播放指定句但不改变当前句高亮
+  // 单句播放：播放指定句、句末自停（高亮随播放头自然移动）
   const playSentenceAt = (idx: number) => {
     const s = sentences[idx];
     if (s) playFrom(s.start_time, s.end_time);
+  };
+
+  // 暂停/播放切换（继续播放 = 连续模式）
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) { playEndRef.current = null; v.play().catch(() => {}); }
+    else v.pause();
+  };
+
+  // 点句气泡：跳到该句并连续播放
+  const jumpToSentence = (idx: number) => {
+    const s = sentences[idx];
+    if (!s) return;
+    goSentence(idx);
+    const v = videoRef.current;
+    if (!v) return;
+    playEndRef.current = null;
+    v.currentTime = s.start_time;
+    v.play().catch(() => {});
+  };
+
+  // 从待定起点（位置记忆/跳原句）开始默认连续自动播放；需元数据就绪
+  const tryStartPendingPlay = () => {
+    const v = videoRef.current;
+    const start = pendingPlayRef.current;
+    if (!v || start == null || v.readyState < 1) return;
+    pendingPlayRef.current = null;
+    playEndRef.current = null;
+    v.playbackRate = rate;
+    v.currentTime = start;
+    v.play().catch(() => {});
+  };
+
+  // 视频元数据就绪时尝试起播（覆盖"元数据后于数据就位"的情况）
+  const onVideoLoaded = () => tryStartPendingPlay();
+
+  // 播放头驱动：单句自停/循环 + 高亮跟随 + 位置上报
+  const handleTimeUpdate = (t: number, paused: boolean) => {
+    const v = videoRef.current;
+    if (!v || paused) return;
+    const end = playEndRef.current;
+    if (end != null && t >= end) {
+      // 单句播放（每句▶/跟读重播）到句末：循环或自停
+      if (loopSingleRef.current && !suppressLoopRef.current && currentSentence) {
+        v.currentTime = currentSentence.start_time;
+        v.play().catch(() => {});
+      } else {
+        v.pause();
+      }
+      return;
+    }
+    if (end == null && loopSingleRef.current && !suppressLoopRef.current && currentSentence && t >= currentSentence.end_time) {
+      // 连续模式下的单句循环：到当前句末回起点
+      v.currentTime = currentSentence.start_time;
+      return;
+    }
+    // 连续播放：当前句高亮跟随播放头
+    const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
+    if (idx >= 0 && idx !== currentIndex) {
+      setCurrentIndex(idx);
+      reportPosition(idx);
+    }
   };
 
   const startShadowing = () => {
@@ -193,6 +267,7 @@ export function useApp() {
     startShadowing, handleWordClick, addToWordBook, closeWord,
     videoRef, playEndRef, loopSingleRef, suppressLoopRef,
     loopSingle, setLoopSingle, rate, cycleRate, playFrom, playSentenceAt,
+    isPlaying, setIsPlaying, togglePlay, jumpToSentence, onVideoLoaded, handleTimeUpdate,
   };
 }
 

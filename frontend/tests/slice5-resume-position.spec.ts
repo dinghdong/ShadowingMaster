@@ -15,15 +15,26 @@ test("跟读位置记忆：重进视频回到上次句位", async ({ page, reque
   expect(loginRes.ok()).toBeTruthy();
   const { access_token } = await loginRes.json();
 
+  // 进页后视频默认自动播放；立即暂停以便确定性断言
+  const freeze = async () => {
+    await page.waitForFunction(
+      () => { const v = document.querySelector("video"); return v && v.currentTime > 0; },
+      undefined,
+      { timeout: 8000 },
+    ).catch(() => {});
+    await page.locator("video").evaluate((v: HTMLVideoElement) => v.pause());
+  };
+
   await page.goto("/");
   await page.evaluate((t) => localStorage.setItem("token", t), access_token);
   await page.reload();
 
-  // 打开视频，切两句 → 当前句 = 第 3 句（index 2）
+  // 打开视频，点气泡跳到第 3 句（index 2）
   await page.getByText("English Speaking Practice").first().click();
   await expect(page.locator("video")).toBeVisible();
-  await page.getByLabel("next-sentence").click();
-  await page.getByLabel("next-sentence").click();
+  await freeze();
+  await page.locator("#sent-2").click();
+  await freeze();
   const curBorder = await page.locator("#sent-2").evaluate((el) => getComputedStyle(el).borderColor);
   expect(curBorder).toBe("rgb(255, 127, 80)");
 
@@ -35,6 +46,7 @@ test("跟读位置记忆：重进视频回到上次句位", async ({ page, reque
   // 重新进入 → 自动恢复到第 3 句
   await page.getByText("English Speaking Practice").first().click();
   await expect(page.locator("video")).toBeVisible();
+  await freeze();
   await expect(page.locator("#sent-2")).toBeVisible();
   const restored = await page.locator("#sent-2").evaluate((el) => getComputedStyle(el).borderColor);
   expect(restored).toBe("rgb(255, 127, 80)");
@@ -44,6 +56,7 @@ test("跟读位置记忆：重进视频回到上次句位", async ({ page, reque
   await page.reload();
   await page.getByText("English Speaking Practice").first().click();
   await expect(page.locator("video")).toBeVisible();
+  await freeze();
   const first = await page.locator("#sent-0").evaluate((el) => getComputedStyle(el).borderColor);
   expect(first).toBe("rgb(255, 127, 80)");
 });
