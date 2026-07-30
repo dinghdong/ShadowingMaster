@@ -1,0 +1,121 @@
+"""一次性导入脚本（Slice 1 骨架）：把 yt-dlp 下载的 <youtube_id>.en.vtt 解析成句级字幕入库。
+用法：python import_video.py <youtube_id> <title>
+Slice 2 会把它泛化成完整的爬取 CLI。
+"""
+import re
+import sqlite3
+import subprocess
+import sys
+from pathlib import Path
+
+BACKEND = Path(__file__).parent
+MEDIA = BACKEND / "media"
+DB_PATH = BACKEND.parent / "app.db"
+
+TS_RE = re.compile(r"(\d+):(\d+):(\d+)\.(\d+)")
+TAG_RE = re.compile(r"<[^>]+>")
+SKIP_RE = re.compile(r"^\[.*\]$")  # [Music] / [Applause] 等
+
+
+def ts_to_sec(ts: str) -> float:
+    m = TS_RE.search(ts)
+    h, mnt, s, ms = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+    return h * 3600 + mnt * 60 + s + ms / 1000
+
+
+def parse_vtt(path: Path):
+    """解析 YouTube 滚动式自动字幕：每条 cue 只取带卡拉OK标签的'新词行'，天然去重。"""
+    chunks = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if "-->" in line:
+            start_s, end_s = [t.strip() for t in line.split("-->")[:2]]
+            end_s = end_s.split()[0]  # 去掉 align:start 等后缀
+            i += 1
+            cue_lines = []
+            new_line = ""
+            # cue 以严格空行结尾；纯空白行（含 position 对齐空格）属于 cue 内容，跳过即可
+            while i < len(lines) and lines[i] != "":
+                raw = lines[i]
+                had_tag = bool(TAG_RE.search(raw))
+                clean = TAG_RE.sub("", raw).strip()
+                if clean:
+                    cue_lines.append(clean)
+                    if had_tag:
+                        new_line = clean
+                i += 1
+            # 只取带卡拉OK标签的"新词行"；无标签的单行 cue 是上一句的复述/音乐，跳过
+            text = new_line
+            if text and not SKIP_RE.match(text):
+                chunks.append((ts_to_sec(start_s), ts_to_sec(end_s), text))
+        else:
+            i += 1
+    return chunks
+
+
+def merge_sentences(chunks, max_words=10, max_span=9.0, max_gap=3.0):
+    """自动字幕无标点，按词数/时长把词块合并成跟读粒度的句子；词块间隔超过 max_gap 视为新场景，强制断句。"""
+    sents, buf, start, last_end = [], [], None, None
+    for c_start, c_end, text in chunks:
+        if start is not None and (c_start - last_end) > max_gap:
+            sents.append((start, last_end, " ".join(buf)))
+            buf, start = [], None
+        if start is None:
+            start = c_start
+        buf.append(text)
+        last_end = c_end
+        words = " ".join(buf).split()
+        if len(words) >= max_words or (last_end - start) >= max_span:
+            sents.append((start, last_end, " ".join(buf)))
+            buf, start = [], None
+    if buf:
+        sents.append((start, last_end, " ".join(buf)))
+    return [(st, en, t[0].upper() + t[1:]) for st, en, t in sents]
+
+
+def probe_duration(mp4: Path) -> int:
+    out = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
+        capture_output=True, text=True, check=True,
+    )
+    return int(float(out.stdout.strip()))
+
+
+def main():
+    youtube_id, title = sys.argv[1], sys.argv[2]
+    vtt = MEDIA / f"{youtube_id}.en.vtt"
+    mp4 = MEDIA / f"{youtube_id}.mp4"
+    jpg = MEDIA / f"{youtube_id}.jpg"
+    assert vtt.exists() and mp4.exists(), f"缺少 {vtt} 或 {mp4}，先用 yt-dlp 下载"
+
+    sents = merge_sentences(parse_vtt(vtt))
+    duration = probe_duration(mp4)
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    old = conn.execute("SELECT id FROM videos WHERE youtube_id = ?", (youtube_id,)).fetchone()
+    if old:
+        conn.execute("DELETE FROM sentences WHERE video_id = ?", (old["id"],))
+        conn.execute("DELETE FROM videos WHERE id = ?", (old["id"],))
+    cur = conn.execute(
+        "INSERT INTO videos (youtube_id, title, duration_seconds, thumbnail_url, video_path, sentence_count) VALUES (?,?,?,?,?,?)",
+        (youtube_id, title, duration,
+         f"/media/{youtube_id}.jpg" if jpg.exists() else None,
+         f"/media/{youtube_id}.mp4", len(sents)),
+    )
+    vid = cur.lastrowid
+    conn.executemany(
+        "INSERT INTO sentences (video_id, sentence_index, start_time, end_time, english_text) VALUES (?,?,?,?,?)",
+        [(vid, idx, st, en, text) for idx, (st, en, text) in enumerate(sents)],
+    )
+    conn.commit()
+    conn.close()
+    print(f"导入完成：video_id={vid}，{len(sents)} 句，时长 {duration}s")
+    for st, en, t in sents[:5]:
+        print(f"  [{st:6.1f}-{en:6.1f}] {t}")
+
+
+if __name__ == "__main__":
+    main()

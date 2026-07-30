@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp, AppState } from "./useApp";
-import { tokenize, compareWords } from "./shared";
+import { tokenize, compareWords, mediaUrl } from "./shared";
 import { color, font, space, radius, shadow } from "./theme";
 
 const FF = font.family;
@@ -37,6 +37,15 @@ function LoginPage(p: AppState) {
 export default function App() {
   const p = useApp();
 
+  // 进入跟读页 / 切句：播放头跳到当前句起点并播放（浏览器自动播放策略拦截时静默，用户点视频即可播）
+  useEffect(() => {
+    const v = p.videoRef.current;
+    const s = p.currentSentence;
+    if (p.page !== "player" || !v || !s) return;
+    v.currentTime = s.start_time;
+    v.play().catch(() => {});
+  }, [p.page, p.currentIndex, p.sentences]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (p.loading) return <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, display: "flex", alignItems: "center", justifyContent: "center", color: color.textLight }}>Loading...</div>;
 
   if (p.page === "login") return <LoginPage {...p} />;
@@ -63,7 +72,7 @@ export default function App() {
           {p.videos.map((v) => (
             <div key={v.id} onClick={() => p.openVideo(v.id)} style={{ background: color.card, borderRadius: radius.lg, marginBottom: space.lg, overflow: "hidden", boxShadow: shadow.card, cursor: "pointer" }}>
               <div style={{ height: 180, background: "linear-gradient(135deg, #FFE5D9, #FFD6BA)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {v.thumbnail_url ? <img src={v.thumbnail_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ color: color.primary }}>🎬</span>}
+                {v.thumbnail_url ? <img src={mediaUrl(v.thumbnail_url)} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ color: color.primary }}>🎬</span>}
               </div>
               <div style={{ padding: space.lg }}>
                 <div style={{ fontWeight: FW.bold, fontSize: FS.body, color: color.text, marginBottom: 6 }}>{v.title}</div>
@@ -112,7 +121,22 @@ export default function App() {
 
       <div style={{ padding: `0 ${space.pagePadding}px`, marginBottom: space.lg }}>
         <div style={{ borderRadius: radius.lg, overflow: "hidden", background: "#000", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ color: "#fff", fontSize: FS.secondary }}>▶ 视频占位</div>
+          {p.currentVideo?.video_path ? (
+            <video
+              ref={p.videoRef}
+              src={mediaUrl(p.currentVideo.video_path)}
+              poster={mediaUrl(p.currentVideo.thumbnail_url)}
+              playsInline
+              style={{ width: "100%", height: "100%" }}
+              onClick={(e) => { const v = e.currentTarget; v.paused ? v.play().catch(() => {}) : v.pause(); }}
+              onTimeUpdate={(e) => {
+                const v = e.currentTarget; const s = p.currentSentence;
+                if (s && !v.paused && v.currentTime >= s.end_time) v.pause();
+              }}
+            />
+          ) : (
+            <div style={{ color: "#fff", fontSize: FS.secondary }}>▶ 暂无视频文件</div>
+          )}
         </div>
       </div>
 

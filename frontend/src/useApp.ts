@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { login, register, getMe, fetchVideos, fetchVideo, getWordBook, addWord } from "./api";
 import { Video, Sentence, Page, compareWords } from "./shared";
 
@@ -22,6 +22,7 @@ export function useApp() {
   const [wordDef, setWordDef] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     getMe().then(setUser).catch(() => setUser(null));
@@ -76,6 +77,14 @@ export function useApp() {
   const startShadowing = () => {
     if (!currentSentence) return;
     setRecognizedText(""); setWordMatches([]);
+    // 先重播原句，播完再开始录音
+    const v = videoRef.current;
+    let delay = 500;
+    if (v && currentSentence.end_time > currentSentence.start_time) {
+      v.currentTime = currentSentence.start_time;
+      v.play().catch(() => {});
+      delay = (currentSentence.end_time - currentSentence.start_time) * 1000 + 400;
+    }
     setTimeout(() => {
       const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       if (!SR) { setRecognizedText("Speech recognition not supported"); return; }
@@ -120,6 +129,7 @@ export function useApp() {
     error,
     openVideo, handleLogin, handleRegister, handleLogout,
     startShadowing, handleWordClick, addToWordBook, closeWord,
+    videoRef,
   };
 }
 

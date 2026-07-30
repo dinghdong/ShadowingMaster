@@ -1,11 +1,13 @@
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -105,6 +107,7 @@ class VideoOut(BaseModel):
     title: str
     duration_seconds: Optional[int]
     thumbnail_url: Optional[str]
+    video_path: Optional[str]
     sentence_count: int
 
 
@@ -156,6 +159,40 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @app.get("/api/auth/me", response_model=UserOut)
 def read_me(current_user=Depends(get_current_user)):
     return {"id": current_user["id"], "email": current_user["email"]}
+
+
+# ── Media（视频/封面，支持 Range 拖拽） ─────────────────────────
+MEDIA_DIR = Path(__file__).parent / "media"
+MEDIA_TYPES = {".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+
+
+@app.get("/media/{file_name}")
+def get_media(file_name: str, request: Request):
+    base = MEDIA_DIR.resolve()
+    full = (base / file_name).resolve()
+    if not str(full).startswith(str(base)) or not full.is_file():
+        raise HTTPException(status_code=404, detail="Media not found")
+    media_type = MEDIA_TYPES.get(full.suffix.lower(), "application/octet-stream")
+    range_header = request.headers.get("range")
+    if not range_header:
+        return FileResponse(full, media_type=media_type)
+    size = full.stat().st_size
+    m = re.match(r"bytes=(\d+)-(\d*)", range_header)
+    if not m:
+        raise HTTPException(status_code=416, detail="Invalid Range")
+    start = int(m.group(1))
+    end = min(int(m.group(2)) if m.group(2) else size - 1, size - 1)
+    with open(full, "rb") as f:
+        f.seek(start)
+        data = f.read(end - start + 1)
+    return Response(
+        data, status_code=206, media_type=media_type,
+        headers={
+            "Content-Range": f"bytes {start}-{end}/{size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(len(data)),
+        },
+    )
 
 
 # ── Video routes ────────────────────────────────────────────────
