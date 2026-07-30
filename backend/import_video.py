@@ -83,8 +83,8 @@ def probe_duration(mp4: Path) -> int:
     return int(float(out.stdout.strip()))
 
 
-def main():
-    youtube_id, title = sys.argv[1], sys.argv[2]
+def ingest(youtube_id: str, title: str) -> int:
+    """把 media/ 下已下载的 <youtube_id>.en.vtt/.mp4 解析入库，返回 video_id。"""
     vtt = MEDIA / f"{youtube_id}.en.vtt"
     mp4 = MEDIA / f"{youtube_id}.mp4"
     jpg = MEDIA / f"{youtube_id}.jpg"
@@ -115,6 +115,11 @@ def main():
     print(f"导入完成：video_id={vid}，{len(sents)} 句，时长 {duration}s")
     for st, en, t in sents[:5]:
         print(f"  [{st:6.1f}-{en:6.1f}] {t}")
+    return vid
+
+
+def main():
+    ingest(sys.argv[1], sys.argv[2])
 
 
 if __name__ == "__main__":

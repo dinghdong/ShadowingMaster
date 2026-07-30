@@ -3,8 +3,8 @@
 | # | 切片 | 状态 | 验证 | 提交 |
 |---|------|------|------|------|
 | 0 | 交互原型（三变体 → 选定 A 收口） | ✅ 完成 | 人工对比 + tsc | d30798e |
-| 1 | 真实视频按句播放 | ✅ 完成 | E2E 单用例通过（tests/slice1-video-playback.spec.ts，1 passed） | 见 git log |
-| 2 | 爬取脚本 CLI | ⬜ 未开始 | | |
+| 1 | 真实视频按句播放 | ✅ 完成 | E2E 单用例通过（tests/slice1-video-playback.spec.ts，1 passed） | 036e8b5 |
+| 2 | 爬取脚本 CLI | ✅ 完成 | E2E 单用例通过（tests/slice2-fetch-cli.spec.ts）+ 全量 2 passed | 见 git log |
 | 3 | 中文字幕 | ⬜ 未开始 | | |
 | 4 | 生词标注真词表 | ⬜ 未开始 | | |
 | 5 | 学习进度接通 | ⬜ 未开始 | | |
