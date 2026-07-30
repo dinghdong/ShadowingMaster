@@ -27,7 +27,8 @@ app = FastAPI(title="ShadowingMaster API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    # 开发期放行任意 localhost 端口（Vite 5173 / Kimi 预览 7100 及重映射端口）
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
