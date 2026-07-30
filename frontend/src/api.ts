@@ -64,3 +64,12 @@ export function addWord(word: string, definition?: string, videoId?: number, sen
     body: JSON.stringify({ word, definition, video_id: videoId, sentence_id: sentenceId }),
   });
 }
+
+export function getProgress() {
+  return api("/api/progress");
+}
+
+/** 上报播放位置（practiced 字段后端必填，位置记忆不用它，恒传 0） */
+export function saveProgress(videoId: number, lastIndex: number) {
+  return api(`/api/progress/${videoId}?last_index=${lastIndex}&practiced=0`, { method: "POST" });
+}

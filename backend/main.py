@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 
 from db import get_db, init_db
@@ -20,7 +20,6 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "shadowingmaster-dev-key-change-in-pro
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 app = FastAPI(title="ShadowingMaster API")
@@ -46,12 +45,13 @@ async def log_requests(request: Request, call_next):
 
 
 # ── Auth helpers ────────────────────────────────────────────────
+# 直接用 bcrypt（passlib 1.7.4 与 bcrypt>=4.1 不兼容会 500）；bcrypt 上限 72 字节，显式截断
 def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode()[:72], hashed.encode())
 
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode()[:72], bcrypt.gensalt()).decode()
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

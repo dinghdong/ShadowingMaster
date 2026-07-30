@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { login, register, getMe, fetchVideos, fetchVideo, getWordBook, addWord } from "./api";
+import { login, register, getMe, fetchVideos, fetchVideo, getWordBook, addWord, getProgress, saveProgress } from "./api";
 import { Video, Sentence, Page, compareWords } from "./shared";
 
 /**
@@ -31,12 +31,24 @@ export function useApp() {
 
   useEffect(() => {
     if (currentVideoId && page === "player") {
-      fetchVideo(currentVideoId).then((data: any) => {
+      let cancelled = false;
+      fetchVideo(currentVideoId).then(async (data: any) => {
+        if (cancelled) return;
         setSentences(data.sentences);
-        setCurrentIndex(0);
         setRecognizedText("");
         setWordMatches([]);
+        // 位置记忆：登录用户恢复上次句位，游客从头开始
+        let idx = 0;
+        if (localStorage.getItem("token")) {
+          try {
+            const progress = await getProgress();
+            const rec = progress.find((r: any) => r.video_id === currentVideoId);
+            if (rec) idx = Math.max(0, Math.min(data.sentences.length - 1, rec.last_sentence_index));
+          } catch { /* 静默 */ }
+        }
+        if (!cancelled) setCurrentIndex(idx);
       });
+      return () => { cancelled = true; };
     }
   }, [currentVideoId, page]);
 
@@ -54,10 +66,20 @@ export function useApp() {
     setPage("player");
   };
 
+  const reportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const goSentence = (idx: number) => {
-    setCurrentIndex(Math.max(0, Math.min(sentences.length - 1, idx)));
+    const clamped = Math.max(0, Math.min(sentences.length - 1, idx));
+    setCurrentIndex(clamped);
     setRecognizedText("");
     setWordMatches([]);
+    // 静默上报播放位置（防抖 800ms；未登录跳过）
+    if (currentVideoId && localStorage.getItem("token")) {
+      if (reportTimerRef.current) clearTimeout(reportTimerRef.current);
+      reportTimerRef.current = setTimeout(() => {
+        saveProgress(currentVideoId, clamped).catch(() => {});
+      }, 800);
+    }
   };
 
   const handleLogin = async (email: string, password: string) => {
