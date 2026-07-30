@@ -15,6 +15,7 @@ DB_PATH = BACKEND.parent / "app.db"
 TS_RE = re.compile(r"(\d+):(\d+):(\d+)\.(\d+)")
 TAG_RE = re.compile(r"<[^>]+>")
 SKIP_RE = re.compile(r"^\[.*\]$")  # [Music] / [Applause] 等
+BRACKET_RE = re.compile(r"\[[^\]]*\]")  # 句中混入的 [music] 等标记，直接剔除
 
 
 def ts_to_sec(ts: str) -> float:
@@ -47,32 +48,66 @@ def parse_vtt(path: Path):
                         new_line = clean
                 i += 1
             # 只取带卡拉OK标签的"新词行"；无标签的单行 cue 是上一句的复述/音乐，跳过
-            text = new_line
-            if text and not SKIP_RE.match(text):
+            text = BRACKET_RE.sub("", new_line).strip()
+            if text:
                 chunks.append((ts_to_sec(start_s), ts_to_sec(end_s), text))
         else:
             i += 1
     return chunks
 
 
-def merge_sentences(chunks, max_words=10, max_span=9.0, max_gap=3.0):
-    """自动字幕无标点，按词数/时长把词块合并成跟读粒度的句子；词块间隔超过 max_gap 视为新场景，强制断句。"""
-    sents, buf, start, last_end = [], [], None, None
-    for c_start, c_end, text in chunks:
-        if start is not None and (c_start - last_end) > max_gap:
-            sents.append((start, last_end, " ".join(buf)))
-            buf, start = [], None
-        if start is None:
-            start = c_start
-        buf.append(text)
-        last_end = c_end
-        words = " ".join(buf).split()
-        if len(words) >= max_words or (last_end - start) >= max_span:
-            sents.append((start, last_end, " ".join(buf)))
-            buf, start = [], None
+TERMINAL = (".", "?", "!", "…")
+
+
+def ends_sentence(word: str) -> bool:
+    """词去掉收尾引号/括号后是否以句末标点结尾（即真实句子边界）。"""
+    return word.rstrip("\"'”’)]").endswith(TERMINAL)
+
+
+def words_stream(chunks):
+    """词块展平成词流；块内按词序线性插值得到每个词的近似时间。"""
+    words = []
+    for start, end, text in chunks:
+        ws = text.split()
+        if not ws:
+            continue
+        span = max(end - start, 0.3)
+        for i, w in enumerate(ws):
+            words.append((start + span * i / len(ws), w))
+    return words
+
+
+def merge_sentences(chunks, max_gap=3.0):
+    """分句：源字幕带标点时按标点断句（高上限防呆）；无标点（纯自动字幕）回退到词数/时长规则。
+    最后把不足 3 词的碎片并入前一句（前一句本身不是完整句时）。"""
+    words = words_stream(chunks)
+    if not words:
+        return []
+    punct_ratio = sum(1 for _, w in words if ends_sentence(w)) / len(words)
+    punctuated = punct_ratio > 0.04
+    max_words, max_span = (25, 15.0) if punctuated else (10, 9.0)
+
+    sents, buf = [], []
+    for t, w in words:
+        if buf and (t - buf[-1][0]) > max_gap:
+            sents.append(buf)
+            buf = []
+        buf.append((t, w))
+        if ends_sentence(w) or len(buf) >= max_words or (t - buf[0][0]) >= max_span:
+            sents.append(buf)
+            buf = []
     if buf:
-        sents.append((start, last_end, " ".join(buf)))
-    return [(st, en, t[0].upper() + t[1:]) for st, en, t in sents]
+        sents.append(buf)
+
+    out = []
+    for b in sents:
+        text = " ".join(w for _, w in b)
+        if out and len(b) < 3 and not ends_sentence(out[-1][2].split()[-1]):
+            ps, pe, pt = out.pop()
+            out.append((ps, b[-1][0], f"{pt} {text}"))
+        else:
+            out.append((b[0][0], b[-1][0], text))
+    return [(st, en + 0.4, t[0].upper() + t[1:]) for st, en, t in out]  # 句末留 0.4s 尾巴，避免最后一个词被截
 
 
 def probe_duration(mp4: Path) -> int:
