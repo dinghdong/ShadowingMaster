@@ -7,6 +7,6 @@
 | 2 | 爬取脚本 CLI | ✅ 完成 | E2E 单用例通过（tests/slice2-fetch-cli.spec.ts）+ 全量 2 passed | acd991c |
 | 3 | 中文字幕 | ✅ 完成 | E2E 单用例通过（tests/slice3-chinese-subtitles.spec.ts）+ 全量 3 passed；4 个视频 480/480 句翻译覆盖 | b550dab |
 | 3.5 | 跟读页精修（参考每日英语听力） | ✅ 完成 | E2E（tests/slice3_5-player-polish.spec.ts）+ 全量 4 passed | 见 git log |
-| 4 | 生词标注真词表 | ⬜ 未开始 | | |
+| 4 | 生词标注真词表 | ✅ 完成 | 语料校准 top5000（标红率 9.2%）+ E2E（tests/slice4-vocabulary.spec.ts）+ 全量 5 passed | 见 git log |
 | 5 | 学习进度接通 | ⬜ 未开始 | | |
 | 6 | 生词本跳回原句 | ⬜ 未开始 | | |
