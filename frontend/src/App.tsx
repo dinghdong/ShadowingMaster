@@ -109,8 +109,11 @@ export default function App() {
           {!p.user ? <div style={{ textAlign: "center", padding: 60, color: color.textLight, fontSize: FS.secondary }}>请登录后查看生词本</div> :
            p.wordBook.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: color.textLight, fontSize: FS.secondary }}>还没有收藏生词</div> :
            p.wordBook.map((w: any) => (
-            <div key={w.id} style={{ background: color.card, borderRadius: radius.lg - 2, padding: space.lg, marginBottom: space.md, boxShadow: shadow.card }}>
-              <div style={{ fontSize: FS.title, fontWeight: FW.bold, color: color.text, marginBottom: space.xs }}>{w.word}</div>
+            <div key={w.id} onClick={() => p.openWordOrigin(w)} style={{ background: color.card, borderRadius: radius.lg - 2, padding: space.lg, marginBottom: space.md, boxShadow: shadow.card, cursor: w.video_id && w.sentence_id ? "pointer" : "default" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.xs }}>
+                <div style={{ fontSize: FS.title, fontWeight: FW.bold, color: color.text }}>{w.word}</div>
+                {w.video_id && w.sentence_id && <div style={{ fontSize: FS.meta, color: color.primary, fontWeight: FW.semibold }}>↩ 回到原句</div>}
+              </div>
               <div style={{ fontSize: FS.secondary, color: color.textLight, lineHeight: font.lineHeight.body }}>{w.definition || "暂无释义"}</div>
             </div>
           ))}

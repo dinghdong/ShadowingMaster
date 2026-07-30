@@ -59,10 +59,12 @@ export function getWordBook() {
 }
 
 export function addWord(word: string, definition?: string, videoId?: number, sentenceId?: number) {
-  return api("/api/wordbook", {
-    method: "POST",
-    body: JSON.stringify({ word, definition, video_id: videoId, sentence_id: sentenceId }),
-  });
+  // 后端契约：标量参数走 query string（JSON body 会 422）
+  const q = new URLSearchParams({ word });
+  if (definition) q.set("definition", definition);
+  if (videoId) q.set("video_id", String(videoId));
+  if (sentenceId) q.set("sentence_id", String(sentenceId));
+  return api(`/api/wordbook?${q.toString()}`, { method: "POST" });
 }
 
 export function getProgress() {

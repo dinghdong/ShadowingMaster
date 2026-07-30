@@ -29,6 +29,9 @@ export function useApp() {
     fetchVideos().then((v: Video[]) => { setVideos(v); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
+  // 位置记忆 / 生词跳原句：生词跳转优先于进度恢复
+  const jumpTargetRef = useRef<{ videoId: number; sentenceId: number } | null>(null);
+
   useEffect(() => {
     if (currentVideoId && page === "player") {
       let cancelled = false;
@@ -37,9 +40,15 @@ export function useApp() {
         setSentences(data.sentences);
         setRecognizedText("");
         setWordMatches([]);
-        // 位置记忆：登录用户恢复上次句位，游客从头开始
         let idx = 0;
-        if (localStorage.getItem("token")) {
+        const jump = jumpTargetRef.current;
+        if (jump && jump.videoId === currentVideoId) {
+          // 生词本跳原句：按 sentence_id 定位句序
+          jumpTargetRef.current = null;
+          const j = data.sentences.findIndex((s: any) => s.id === jump.sentenceId);
+          idx = j >= 0 ? j : 0;
+        } else if (localStorage.getItem("token")) {
+          // 位置记忆：登录用户恢复上次句位，游客从头开始
           try {
             const progress = await getProgress();
             const rec = progress.find((r: any) => r.video_id === currentVideoId);
@@ -64,6 +73,13 @@ export function useApp() {
   const openVideo = (id: number) => {
     setCurrentVideoId(id);
     setPage("player");
+  };
+
+  // 生词本 → 跳回原视频原句（无来源信息的词条不可跳）
+  const openWordOrigin = (w: any) => {
+    if (!w.video_id || !w.sentence_id) return;
+    jumpTargetRef.current = { videoId: w.video_id, sentenceId: w.sentence_id };
+    openVideo(w.video_id);
   };
 
   const reportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -173,7 +189,7 @@ export function useApp() {
     isRecording, recognizedText, wordMatches,
     wordBook, selectedWord, wordDef,
     error,
-    openVideo, handleLogin, handleRegister, handleLogout,
+    openVideo, openWordOrigin, handleLogin, handleRegister, handleLogout,
     startShadowing, handleWordClick, addToWordBook, closeWord,
     videoRef, playEndRef, loopSingleRef, suppressLoopRef,
     loopSingle, setLoopSingle, rate, cycleRate, playFrom, playSentenceAt,
