@@ -121,33 +121,36 @@ export default function App() {
   // ─── 跟读页 ───
   return (
     <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, paddingBottom: 110 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: space.md, padding: `${space.md}px ${space.lg}px` }}>
-        <button onClick={() => p.setPage("list")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
-        <div style={{ fontSize: FS.body - 1, fontWeight: FW.semibold, color: color.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.currentVideo?.title || "跟读"}</div>
-        <button onClick={() => p.setPage("wordbook")} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>📖</button>
-      </div>
+      {/* 头部 + 播放器吸顶固定：字幕滚动时播放器不滚走 */}
+      <div style={{ position: "sticky", top: 0, zIndex: 20, background: color.bg, paddingBottom: space.sm }}>
+        <div style={{ display: "flex", alignItems: "center", gap: space.md, padding: `${space.md}px ${space.lg}px` }}>
+          <button onClick={() => p.setPage("list")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
+          <div style={{ fontSize: FS.body - 1, fontWeight: FW.semibold, color: color.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.currentVideo?.title || "跟读"}</div>
+          <button onClick={() => p.setPage("wordbook")} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>📖</button>
+        </div>
 
-      <div style={{ padding: `0 ${space.pagePadding}px`, marginBottom: space.lg }}>
-        <div style={{ borderRadius: radius.lg, overflow: "hidden", background: "#000", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {p.currentVideo?.video_path ? (
-            <video
-              ref={p.videoRef}
-              src={mediaUrl(p.currentVideo.video_path)}
-              poster={mediaUrl(p.currentVideo.thumbnail_url)}
-              playsInline
-              style={{ width: "100%", height: "100%" }}
-              onClick={p.togglePlay}
-              onLoadedMetadata={p.onVideoLoaded}
-              onPlay={() => p.setIsPlaying(true)}
-              onPause={() => p.setIsPlaying(false)}
-              onTimeUpdate={(e) => {
-                const v = e.currentTarget;
-                p.handleTimeUpdate(v.currentTime, v.paused);
-              }}
-            />
-          ) : (
-            <div style={{ color: "#fff", fontSize: FS.secondary }}>▶ 暂无视频文件</div>
-          )}
+        <div style={{ padding: `0 ${space.pagePadding}px`, marginBottom: space.sm }}>
+          <div style={{ borderRadius: radius.lg, overflow: "hidden", background: "#000", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {p.currentVideo?.video_path ? (
+              <video
+                ref={p.videoRef}
+                src={mediaUrl(p.currentVideo.video_path)}
+                poster={mediaUrl(p.currentVideo.thumbnail_url)}
+                playsInline
+                style={{ width: "100%", height: "100%" }}
+                onClick={p.togglePlay}
+                onLoadedMetadata={p.onVideoLoaded}
+                onPlay={() => p.setIsPlaying(true)}
+                onPause={() => p.setIsPlaying(false)}
+                onTimeUpdate={(e) => {
+                  const v = e.currentTarget;
+                  p.handleTimeUpdate(v.currentTime, v.paused);
+                }}
+              />
+            ) : (
+              <div style={{ color: "#fff", fontSize: FS.secondary }}>▶ 暂无视频文件</div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -36,4 +36,15 @@ test("连续播放与暂停/播放按钮", async ({ page }) => {
     },
     { timeout: 10_000 },
   );
+
+  // 5. 播放器吸顶：跳到第 11 句、页面滚动后，video 仍钉在视口顶部
+  await video.evaluate((v: HTMLVideoElement) => v.pause());
+  await page.locator("#sent-10").click();
+  await page.waitForTimeout(600); // 等 smooth 滚动
+  const scrollY = await page.evaluate(() => window.scrollY);
+  expect(scrollY).toBeGreaterThan(0); // 页面确实滚了
+  const box = await page.locator("video").boundingBox();
+  expect(box).toBeTruthy();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y).toBeLessThan(120); // 钉在顶部（头部栏高度以内）
 });
