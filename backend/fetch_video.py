@@ -32,7 +32,21 @@ def fetch(url: str) -> int:
         ydl.download([url])
 
     # 3. 解析字幕入库
-    return ingest(youtube_id, title)
+    video_id = ingest(youtube_id, title)
+
+    # 4. 中文字幕（best-effort：翻译失败不阻塞，事后可 python translate_video.py <id> 补跑）
+    try:
+        from translate_video import translate_video
+        import sqlite3
+        from import_video import DB_PATH
+        conn = sqlite3.connect(str(DB_PATH))
+        ok, fail = translate_video(conn, video_id)
+        conn.close()
+        print(f"中文字幕：翻译 {ok} 句" + (f"，失败 {fail} 句" if fail else ""))
+    except Exception as e:
+        print(f"中文字幕翻译跳过（{e}），可事后补跑：python translate_video.py {video_id}")
+
+    return video_id
 
 
 if __name__ == "__main__":
