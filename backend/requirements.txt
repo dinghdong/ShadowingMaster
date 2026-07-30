@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+yt-dlp
+requests
+aiofiles
