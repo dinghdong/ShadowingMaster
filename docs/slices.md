@@ -11,3 +11,4 @@
 | 5 | 播放位置记忆（2026-07-30 用户重定义：砍"学习进度"叙事，只做重进跟读页恢复句位） | ✅ 完成 | E2E（tests/slice5-resume-position.spec.ts）+ 全量 6 passed；顺带修复注册 500（弃用 passlib 直调 bcrypt） | 见 git log |
 | 6 | 生词本跳回原句 | ✅ 完成 | E2E（tests/slice6-wordbook-jump.spec.ts）+ 全量 7 passed；顺带修复加生词 422（改 query 参数对齐后端契约） | 见 git log |
 | 6.5 | 连续自动播放模型（2026-07-30 用户调整：默认连续播放、去 ⏮⏭、加暂停/播放，高亮跟随播放头） | ✅ 完成 | E2E（tests/slice7-continuous-play.spec.ts）+ 全量 8 passed + 复跑 3 项无抖动；修复元数据/数据加载竞态（双路径 tryStartPendingPlay） | 见 git log |
+| 7 | hash 路由（#/、#/video/:id、#/wordbook、#/login；零依赖，免服务端回退规则） | ✅ 完成 | E2E（tests/slice7-routing.spec.ts：点卡片变 URL/刷新保持/前进后退/直达链接）+ 全量 9 passed | 见 git log |

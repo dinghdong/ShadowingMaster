@@ -7,10 +7,20 @@ import { Video, Sentence, Page, compareWords } from "./shared";
  * 数据获取 / API 调用 / 状态管理集中在这里，App.tsx 只负责渲染。
  */
 export function useApp() {
-  const [page, setPage] = useState<Page>("list");
+  // ── Hash 路由（零依赖）：#/ 列表、#/video/:id 跟读、#/wordbook、#/login ──
+  const parseHash = (): { page: Page; videoId: number | null } => {
+    const h = window.location.hash.replace(/^#/, "");
+    const m = h.match(/^\/video\/(\d+)$/);
+    if (m) return { page: "player", videoId: Number(m[1]) };
+    if (h === "/wordbook") return { page: "wordbook", videoId: null };
+    if (h === "/login") return { page: "login", videoId: null };
+    return { page: "list", videoId: null };
+  };
+
+  const [page, setPageState] = useState<Page>(() => parseHash().page);
   const [user, setUser] = useState<any>(null);
   const [videos, setVideos] = useState<Video[]>([]);
-  const [currentVideoId, setCurrentVideoId] = useState<number | null>(null);
+  const [currentVideoId, setCurrentVideoId] = useState<number | null>(() => parseHash().videoId);
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [subtitleMode, setSubtitleMode] = useState<"both" | "english" | "chinese" | "none">("both");
@@ -28,6 +38,22 @@ export function useApp() {
     getMe().then(setUser).catch(() => setUser(null));
     fetchVideos().then((v: Video[]) => { setVideos(v); setLoading(false); }).catch(() => setLoading(false));
   }, []);
+
+  // hash 变化同步到 state（浏览器前进/后退、直达链接同样生效）
+  useEffect(() => {
+    const onHash = () => {
+      const r = parseHash();
+      setPageState(r.page);
+      if (r.videoId != null) setCurrentVideoId(r.videoId);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // 页面导航统一走 hash；hashchange 监听再回流 state，单一事实源
+  const setPage = (pg: Page) => {
+    window.location.hash = pg === "list" ? "/" : `/${pg}`;
+  };
 
   // 位置记忆 / 生词跳原句：生词跳转优先于进度恢复
   const jumpTargetRef = useRef<{ videoId: number; sentenceId: number } | null>(null);
@@ -77,8 +103,7 @@ export function useApp() {
   const currentVideo = videos.find((v) => v.id === currentVideoId);
 
   const openVideo = (id: number) => {
-    setCurrentVideoId(id);
-    setPage("player");
+    window.location.hash = `/video/${id}`;
   };
 
   // 生词本 → 跳回原视频原句（无来源信息的词条不可跳）
