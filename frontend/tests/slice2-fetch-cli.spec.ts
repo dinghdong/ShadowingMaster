@@ -15,7 +15,7 @@ test("爬取的新视频可浏览可播放", async ({ page }) => {
   await expect(page.getByText("Lesson one where are you from")).toBeVisible();
 
   // 切句后播放头跳转
-  await page.getByText("⏭ 下一句").click();
+  await page.getByLabel("next-sentence").click();
   await page.waitForFunction(
     () => { const v = document.querySelector("video"); return v && v.currentTime > 15; },
     { timeout: 10_000 },

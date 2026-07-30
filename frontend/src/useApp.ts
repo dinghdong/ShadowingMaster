@@ -13,7 +13,7 @@ export function useApp() {
   const [currentVideoId, setCurrentVideoId] = useState<number | null>(null);
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [subtitleMode, setSubtitleMode] = useState<"both" | "english" | "chinese">("both");
+  const [subtitleMode, setSubtitleMode] = useState<"both" | "english" | "chinese" | "none">("both");
   const [isRecording, setIsRecording] = useState(false);
   const [recognizedText, setRecognizedText] = useState("");
   const [wordMatches, setWordMatches] = useState<boolean[]>([]);
@@ -74,31 +74,55 @@ export function useApp() {
 
   const handleLogout = () => { localStorage.removeItem("token"); setUser(null); setPage("list"); };
 
+  // ── 播放控制（精修片）──
+  const playEndRef = useRef<number | null>(null);     // 本次播放应在何时自动停（句末）
+  const suppressLoopRef = useRef(false);              // 跟读录音期间抑制单句循环
+  const [loopSingle, setLoopSingle] = useState(false);
+  const loopSingleRef = useRef(false);
+  useEffect(() => { loopSingleRef.current = loopSingle; }, [loopSingle]);
+  const RATES = [1, 0.75, 1.25];
+  const [rateIdx, setRateIdx] = useState(0);
+  const rate = RATES[rateIdx];
+  const cycleRate = () => setRateIdx((i) => (i + 1) % RATES.length);
+
+  const playFrom = (start: number, end: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = start;
+    playEndRef.current = end;
+    v.play().catch(() => {});
+  };
+
+  // 单句播放：播放指定句但不改变当前句高亮
+  const playSentenceAt = (idx: number) => {
+    const s = sentences[idx];
+    if (s) playFrom(s.start_time, s.end_time);
+  };
+
   const startShadowing = () => {
     if (!currentSentence) return;
     setRecognizedText(""); setWordMatches([]);
+    suppressLoopRef.current = true;
     // 先重播原句，播完再开始录音
-    const v = videoRef.current;
     let delay = 500;
-    if (v && currentSentence.end_time > currentSentence.start_time) {
-      v.currentTime = currentSentence.start_time;
-      v.play().catch(() => {});
+    if (currentSentence.end_time > currentSentence.start_time) {
+      playFrom(currentSentence.start_time, currentSentence.end_time);
       delay = (currentSentence.end_time - currentSentence.start_time) * 1000 + 400;
     }
     setTimeout(() => {
       const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      if (!SR) { setRecognizedText("Speech recognition not supported"); return; }
+      if (!SR) { setRecognizedText("Speech recognition not supported"); suppressLoopRef.current = false; return; }
       const rec = new SR(); rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
       rec.onstart = () => setIsRecording(true);
-      rec.onend = () => setIsRecording(false);
+      rec.onend = () => { setIsRecording(false); suppressLoopRef.current = false; };
       rec.onresult = (e: any) => {
         const text = e.results[0][0].transcript;
         setRecognizedText(text);
         setWordMatches(compareWords(currentSentence.english_text, text).matches);
       };
-      rec.onerror = () => { setIsRecording(false); setRecognizedText("Recognition failed"); };
+      rec.onerror = () => { setIsRecording(false); setRecognizedText("Recognition failed"); suppressLoopRef.current = false; };
       rec.start();
-    }, 500);
+    }, delay);
   };
 
   const handleWordClick = async (word: string) => {
@@ -129,7 +153,8 @@ export function useApp() {
     error,
     openVideo, handleLogin, handleRegister, handleLogout,
     startShadowing, handleWordClick, addToWordBook, closeWord,
-    videoRef,
+    videoRef, playEndRef, loopSingleRef, suppressLoopRef,
+    loopSingle, setLoopSingle, rate, cycleRate, playFrom, playSentenceAt,
   };
 }
 

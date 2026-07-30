@@ -13,7 +13,7 @@ test("跟读页真实视频按句播放", async ({ page }) => {
 
   // 2. 点"下一句"（用户手势）→ 播放头跳到第 2 句起点并开始播放
   const t0 = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
-  await page.getByText("⏭ 下一句").click();
+  await page.getByLabel("next-sentence").click();
   await page.waitForFunction(
     (t) => { const v = document.querySelector("video"); return v && !v.paused && v.currentTime > t + 0.3; },
     t0, { timeout: 10_000 },
