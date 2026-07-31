@@ -642,15 +642,41 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
     margin: 0 auto;
     padding: var(--sp-6);
   }
-  .practice .player-bar {
+  .practice__left {
     position: sticky;
     top: var(--sp-5);
-    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--sp-5) * 2);
+    min-height: 0;
   }
-  .practice .player-bar .navbar--keep {
+  .practice__left .player-bar {
+    position: static;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .practice__left .player-bar .navbar--keep {
     padding-top: 0;
   }
-  .practice .page-pad { padding: 0; }
+  .practice__left .page-pad {
+    padding: 0;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  .practice__left .page-pad:first-of-type {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: var(--sp-3) 0;
+  }
+  .practice__left .player-frame {
+    flex: 1;
+    aspect-ratio: auto;
+    min-height: 220px;
+    max-height: min(66vh, 640px);
+  }
+  .practice__right { padding: 0; }
 
   /* —— 添加页 / 个人中心：加宽居中 —— */
   .shell__main .page-pad {

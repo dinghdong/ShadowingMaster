@@ -690,6 +690,7 @@ export default function App() {
   // ─── 跟读页 ───
   return withShell(
     <div className="app practice">
+      <div className="practice__left">
       <div className="player-bar">
         <div className="navbar navbar--keep">
           <button className="icon-btn icon-btn--plain navbar__back" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
@@ -771,7 +772,7 @@ export default function App() {
                 src={mediaUrl(p.currentVideo.video_path)}
                 poster={mediaUrl(p.currentVideo.thumbnail_url)}
                 playsInline
-                style={{ width: "100%", height: "100%" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
                 onClick={p.togglePlay}
                 onLoadedMetadata={p.onVideoLoaded}
                 onPlay={() => p.setIsPlaying(true)}
@@ -801,8 +802,9 @@ export default function App() {
           ))}
         </div>
       </div>
+      </div>
 
-      <div className="page-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="page-pad practice__right" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {p.sentences.map((s, idx) => (
           <SentenceCard key={s.id} p={p} s={s} idx={idx} />
         ))}
