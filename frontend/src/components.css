@@ -43,10 +43,11 @@
 
 /* 圆形图标按钮（顶栏动作） */
 .icon-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px; height: 38px;
+  width: 40px; height: 40px;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
   background: var(--surface);
@@ -55,11 +56,31 @@
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.icon-btn:hover { background: var(--surface-2); color: var(--primary); }
+.icon-btn:hover { background: var(--surface-2); color: var(--primary); border-color: var(--primary-soft); }
 .icon-btn:active { transform: scale(0.94); }
 .icon-btn--on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .icon-btn--plain { border: none; background: transparent; width: auto; height: auto; font-size: 22px; color: var(--text); }
 .icon-btn--plain:hover { background: transparent; color: var(--primary); }
+.icon-btn--accent { background: var(--primary-soft); border-color: var(--primary-soft); color: var(--primary); }
+.icon-btn--accent:hover { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+
+/* 图标角标 */
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  line-height: 18px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
 
 /* 文字 / 邮箱按钮 */
 .link-btn {

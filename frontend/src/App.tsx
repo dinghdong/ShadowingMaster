@@ -567,13 +567,14 @@ export default function App() {
           <div className="navbar__actions">
             {p.user ? (
               <>
-                <button className="link-btn" onClick={() => p.setPage("profile")} aria-label="个人中心">
-                  <Icon name="user" size={18} />
-                  <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.user.email}</span>
+                <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本">
+                  <Icon name="book" size={20} />
+                  {p.wordBook && p.wordBook.length > 0 && (
+                    <span className="badge">{p.wordBook.length > 99 ? "99+" : p.wordBook.length}</span>
+                  )}
                 </button>
-                <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本"><Icon name="book" size={18} /></button>
-                <button className="icon-btn" onClick={() => p.setPage("add")} title="添加视频" aria-label="添加视频"><Icon name="plus" size={18} /></button>
-                <button className="btn btn--sm btn--outline" onClick={p.handleLogout}>退出</button>
+                <button className="icon-btn" onClick={() => p.setPage("add")} title="添加视频" aria-label="添加视频"><Icon name="plus" size={20} /></button>
+                <button className="icon-btn icon-btn--accent" onClick={() => p.setPage("profile")} title="个人中心" aria-label="个人中心"><Icon name="user" size={20} /></button>
               </>
             ) : (
               <button className="btn btn--sm btn--primary" onClick={() => p.setPage("login")}>登录</button>
