@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useApp, AppState } from "./useApp";
 import { tokenize, compareWords, mediaUrl, Sentence, posLabel } from "./shared";
-import { Icon } from "./components/Icon";
+import { Icon, IconName } from "./components/Icon";
 import { getStoredTheme, toggleTheme, ThemeMode } from "./theme-mode";
 
 // 评分配色 / 文案（跟读评价）—— 用语义 CSS 变量，随深浅主题自适应
@@ -534,6 +534,64 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
   );
 }
 
+// ─── 桌面端外壳：左侧导航栏 + 主内容区 ───
+const SHELL_NAV: { key: AppState["page"]; label: string; icon: IconName }[] = [
+  { key: "list", label: "视频列表", icon: "film" },
+  { key: "wordbook", label: "生词本", icon: "book" },
+  { key: "profile", label: "个人中心", icon: "user" },
+  { key: "add", label: "添加视频", icon: "plus" },
+];
+
+function DesktopShell({ p, theme, onToggleTheme, children }: {
+  p: AppState;
+  theme: ThemeMode;
+  onToggleTheme: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="sidebar__top">
+          <div className="sidebar__brand">ShadowingMaster</div>
+          <div className="sidebar__sub">英语口语跟读训练</div>
+        </div>
+
+        <nav className="sidebar__nav">
+          {SHELL_NAV.map((n) => (
+            <button
+              key={n.key}
+              onClick={() => p.setPage(n.key)}
+              className={`nav-item ${p.page === n.key ? "nav-item--active" : ""}`}
+              aria-current={p.page === n.key ? "page" : undefined}
+            >
+              <Icon name={n.icon} size={20} />
+              <span>{n.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar__foot">
+          <button className="icon-btn icon-btn--plain" onClick={onToggleTheme} aria-label="切换主题" title="切换深色模式">
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={20} />
+          </button>
+          {p.user ? (
+            <div className="sidebar__user">
+              <div className="sidebar__email" title={p.user.email}>{p.user.email}</div>
+              <button className="nav-item nav-item--ghost" onClick={p.handleLogout}>
+                <Icon name="logout" size={18} /><span>退出</span>
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn--sm btn--primary btn--block" onClick={() => p.setPage("login")}>登录</button>
+          )}
+        </div>
+      </aside>
+
+      <main className="shell__main">{children}</main>
+    </div>
+  );
+}
+
 export default function App() {
   const p = useApp();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -544,22 +602,21 @@ export default function App() {
     if (p.videoRef.current) p.videoRef.current.playbackRate = p.rate;
   }, [p.rate, p.page, p.currentVideoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (p.page !== "player") return;
-    document.getElementById(`sent-${p.currentIndex}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [p.page, p.currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (p.loading) return <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><span className="meta">Loading…</span></div>;
 
   if (p.page === "login") return <LoginPage {...p} theme={theme} onToggleTheme={onToggleTheme} />;
 
-  if (p.page === "profile") return <ProfilePage {...p} />;
+  const withShell = (node: React.ReactNode) => (
+    <DesktopShell p={p} theme={theme} onToggleTheme={onToggleTheme}>{node}</DesktopShell>
+  );
 
-  if (p.page === "add") return <AddVideoPage {...p} />;
+  if (p.page === "profile") return withShell(<ProfilePage {...p} />);
+
+  if (p.page === "add") return withShell(<AddVideoPage {...p} />);
 
   // ─── 视频列表页 ───
   if (p.page === "list") {
-    return (
+    return withShell(
       <div className="app">
         <div className="navbar">
           <div className="navbar__brand">ShadowingMaster</div>
@@ -582,7 +639,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="page-pad">
+        <div className="page-pad list-grid">
           {p.videos.map((v) => (
             <div key={v.id} onClick={() => p.openVideo(v.id)} className="video-card fade-up" style={{ marginBottom: "var(--sp-4)" }}>
               <div className="video-card__thumb">
@@ -607,13 +664,13 @@ export default function App() {
 
   // ─── 生词本页 ───
   if (p.page === "wordbook") {
-    return (
+    return withShell(
       <div className="app">
         <div className="navbar">
-          <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+          <button className="icon-btn icon-btn--plain navbar__back" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
           <div className="navbar__title">我的生词本</div>
         </div>
-        <div className="page-pad">
+        <div className="page-pad wordbook-grid">
           {!p.user ? <div className="empty">请登录后查看生词本</div> :
            p.wordBook.length === 0 ? <div className="empty">还没有收藏生词</div> :
            p.wordBook.map((w: any) => (
@@ -631,14 +688,14 @@ export default function App() {
   }
 
   // ─── 跟读页 ───
-  return (
-    <div className="app">
+  return withShell(
+    <div className="app practice">
       <div className="player-bar">
-        <div className="navbar">
-          <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+        <div className="navbar navbar--keep">
+          <button className="icon-btn icon-btn--plain navbar__back" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
           <div className="navbar__title" style={{ fontSize: "calc(var(--fs-body) - 1px)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.currentVideo?.title || "跟读"}</div>
           <div className="navbar__actions">
-            <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本"><Icon name="book" size={18} /></button>
+            <button className="icon-btn navbar__wordbook" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本"><Icon name="book" size={18} /></button>
             <div style={{ position: "relative", zIndex: "var(--z-popover)" }}>
               <button
                 aria-label="settings"
@@ -750,6 +807,15 @@ export default function App() {
           <SentenceCard key={s.id} p={p} s={s} idx={idx} />
         ))}
       </div>
+
+      {p.resumeIndex !== null && !p.resumeDismissed && p.currentIndex === p.resumeIndex && (
+        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: "var(--sp-2)", background: "var(--primary)", color: "var(--on-primary)", padding: "9px 9px 9px 16px", borderRadius: "var(--r-pill)", boxShadow: "var(--shadow-float)", fontFamily: "var(--ff)", fontSize: "var(--fs-secondary)", fontWeight: "var(--fw-semibold)", zIndex: "var(--z-toast)", maxWidth: "90vw" }}>
+          <button onClick={p.jumpToResume} style={{ background: "none", border: "none", color: "var(--on-primary)", fontFamily: "var(--ff)", fontSize: "var(--fs-secondary)", fontWeight: "var(--fw-bold)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
+            <span style={{ fontSize: "var(--fs-body)" }}>↓</span> 继续学习：第 {p.resumeIndex + 1} 句
+          </button>
+          <button onClick={p.dismissResume} aria-label="dismiss-resume" title="不再提示" style={{ background: "rgba(255,255,255,0.22)", border: "none", color: "var(--on-primary)", width: 22, height: 22, borderRadius: "50%", cursor: "pointer", fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+      )}
 
       {p.toast && (
         <div className="toast">{p.toast}</div>

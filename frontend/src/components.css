@@ -524,3 +524,142 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   padding: var(--sp-4); box-shadow: var(--shadow-sm);
 }
 .divider { height: 1px; background: var(--border); border: none; margin: var(--sp-3) 0; }
+
+/* ============================================================
+   PC / 桌面端布局（≥ 900px）
+   移动端（< 900px）维持现有单列手机布局，此处仅覆盖桌面表现
+   ============================================================ */
+@media (min-width: 900px) {
+  #root { max-width: none; background: var(--bg); }
+
+  /* —— 外壳：左侧栏 + 主区 —— */
+  .shell {
+    display: grid;
+    grid-template-columns: 252px 1fr;
+    min-height: 100vh;
+  }
+
+  /* —— 侧边导航栏 —— */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-7) var(--sp-4);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+  }
+  .sidebar__brand {
+    font-size: var(--fs-pageTitle);
+    font-weight: var(--fw-heavy);
+    color: var(--primary);
+    letter-spacing: 0.2px;
+  }
+  .sidebar__sub { font-size: var(--fs-meta); color: var(--text-2); margin-bottom: var(--sp-6); }
+
+  .sidebar__nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    width: 100%;
+    padding: 11px var(--sp-3);
+    border: none;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--text-2);
+    font-family: var(--ff);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item--active { background: var(--primary-soft); color: var(--primary); font-weight: var(--fw-semibold); }
+  .nav-item--ghost { color: var(--text-2); }
+  .nav-item--ghost:hover { background: var(--surface-2); color: var(--danger); }
+
+  .sidebar__foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--border);
+  }
+  .sidebar__foot .icon-btn--plain { align-self: flex-start; }
+  .sidebar__user { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .sidebar__email {
+    font-size: var(--fs-secondary);
+    color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .shell__main { min-width: 0; background: var(--bg); }
+
+  /* —— 顶栏：桌面端默认隐藏（侧栏已接管导航）；跟读页保留用于标题 + 设置 —— */
+  .navbar { display: none; }
+  .navbar--keep {
+    display: flex;
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+    padding: var(--sp-5) 0;
+  }
+  .navbar--keep .navbar__back,
+  .navbar--keep .navbar__wordbook { display: none; }
+
+  /* —— 视频列表：卡片网格 —— */
+  .list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: var(--sp-5);
+    padding: var(--sp-6);
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  .list-grid .video-card { margin-bottom: 0; }
+
+  /* —— 生词本：卡片网格 —— */
+  .wordbook-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--sp-4);
+    padding: var(--sp-6);
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  .wordbook-grid .list-card { margin-bottom: 0; }
+
+  /* —— 跟读页：左播放器（吸顶）+ 右字幕流 —— */
+  .practice {
+    display: grid;
+    grid-template-columns: minmax(380px, 460px) minmax(0, 1fr);
+    gap: var(--sp-6);
+    align-items: start;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: var(--sp-6);
+  }
+  .practice .player-bar {
+    position: sticky;
+    top: var(--sp-5);
+    margin: 0;
+  }
+  .practice .player-bar .navbar--keep {
+    padding-top: 0;
+  }
+  .practice .page-pad { padding: 0; }
+
+  /* —— 添加页 / 个人中心：加宽居中 —— */
+  .shell__main .page-pad {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: var(--sp-6);
+  }
+}
+
+@media (min-width: 1280px) {
+  .practice { grid-template-columns: 520px minmax(0, 1fr); }
+}

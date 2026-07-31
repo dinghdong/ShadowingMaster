@@ -11,7 +11,7 @@ export type IconName =
   | "star" | "starFill" | "note" | "eye" | "eyeOff"
   | "play" | "pause" | "gear" | "close" | "redo" | "check"
   | "arrowLeft" | "arrowRight" | "reply" | "spinner" | "checkCircle"
-  | "sun" | "moon" | "target";
+  | "sun" | "moon" | "target" | "logout";
 
 // 填充型图标（实心）
 const FILLED = new Set<IconName>(["play", "pause", "stop", "starFill"]);
@@ -159,6 +159,12 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="5" />
       <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+      <path d="M10 12H3M6 8l-4 4 4 4" />
     </>
   ),
 };
