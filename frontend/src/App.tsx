@@ -1,89 +1,600 @@
 import { useState, useEffect } from "react";
 import { useApp, AppState } from "./useApp";
-import { tokenize, compareWords, mediaUrl } from "./shared";
-import { color, font, space, radius, shadow } from "./theme";
+import { tokenize, compareWords, mediaUrl, Sentence, posLabel } from "./shared";
+import { Icon } from "./components/Icon";
+import { getStoredTheme, toggleTheme, ThemeMode } from "./theme-mode";
 
-const FF = font.family;
-const FS = font.size;
-const FW = font.weight;
+// 评分配色 / 文案（跟读评价）—— 用语义 CSS 变量，随深浅主题自适应
+const scoreVar = (v: number) =>
+  v >= 80 ? "var(--success)" : v >= 60 ? "var(--warning)" : "var(--danger)";
+const scoreLabel = (v: number) =>
+  v >= 90 ? "发音地道" : v >= 80 ? "很好" : v >= 60 ? "不错，继续练" : "多听多模仿";
 
-function LoginPage(p: AppState) {
+function LoginPage(p: AppState & { theme: ThemeMode; onToggleTheme: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
-  const inputStyle: React.CSSProperties = {
-    width: "100%", padding: space.md + 2, borderRadius: radius.md, fontFamily: FF,
-    border: `1px solid ${color.border}`, marginBottom: space.md, fontSize: FS.body, boxSizing: "border-box",
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [localErr, setLocalErr] = useState("");
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  const validate = (): string => {
+    if (!EMAIL_RE.test(email.trim())) return "邮箱格式不正确";
+    if (password.length < 8) return "密码至少需要 8 位";
+    return "";
   };
+  const submit = () => {
+    setLocalErr("");
+    const ve = validate();
+    if (ve) { setLocalErr(ve); return; }
+    if (mode === "login") p.handleLogin(email.trim(), password);
+    else p.handleRegister(email.trim(), password);
+  };
+  const switchMode = (m: "login" | "register") => { setMode(m); setLocalErr(""); };
+  const shownErr = localErr || p.error;
   return (
-    <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px" }}>
-      <div style={{ fontSize: FS.brand, fontWeight: FW.heavy, color: color.primary, marginBottom: space.sm }}>ShadowingMaster</div>
-      <div style={{ color: color.textLight, fontSize: FS.secondary, marginBottom: 40 }}>英语口语跟读训练</div>
-      <div style={{ width: "100%", maxWidth: 360, background: color.card, borderRadius: radius.xl, padding: space.xxxl, boxShadow: shadow.float }}>
-        <div style={{ display: "flex", gap: space.sm, marginBottom: space.xxl }}>
+    <div className="app app--flush" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", position: "relative" }}>
+      <button className="icon-btn icon-btn--plain" aria-label="切换主题" onClick={p.onToggleTheme}
+        style={{ position: "absolute", top: 16, right: 16 }}>
+        <Icon name={p.theme === "dark" ? "sun" : "moon"} size={22} />
+      </button>
+
+      <div style={{ fontSize: "var(--fs-brand)", fontWeight: "var(--fw-heavy)", color: "var(--primary)", marginBottom: "var(--sp-2)" }}>ShadowingMaster</div>
+      <div className="meta" style={{ marginBottom: 40 }}>英语口语跟读训练</div>
+
+      <div className="auth-card fade-up">
+        <div className="auth-head segmented">
           {(["login", "register"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: space.md, borderRadius: radius.md, border: "none", fontFamily: FF, background: mode === m ? color.primary : "transparent", color: mode === m ? "#fff" : color.textLight, fontWeight: FW.semibold, fontSize: FS.secondary, cursor: "pointer" }}>{m === "login" ? "登录" : "注册"}</button>
+            <button key={m} onClick={() => switchMode(m)}
+              className={`segmented__btn ${mode === m ? "segmented__btn--active" : ""}`}>
+              {m === "login" ? "登录" : "注册"}
+            </button>
           ))}
         </div>
-        <input placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-        <input placeholder="密码" type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle, marginBottom: space.lg }} />
-        {p.error && <div style={{ color: color.hardWord, fontSize: FS.meta, marginBottom: space.md }}>{p.error}</div>}
-        <button onClick={() => (mode === "login" ? p.handleLogin(email, password) : p.handleRegister(email, password))} style={{ width: "100%", padding: space.md + 2, borderRadius: radius.md, border: "none", fontFamily: FF, background: color.primary, color: "#fff", fontWeight: FW.bold, fontSize: FS.body, cursor: "pointer" }}>{mode === "login" ? "登 录" : "注 册"}</button>
-        <button onClick={() => p.setPage("list")} style={{ width: "100%", marginTop: space.md, padding: space.md, background: "transparent", border: "none", fontFamily: FF, fontSize: FS.secondary, color: color.textLight, cursor: "pointer" }}>先逛逛 →</button>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+          <input className="input" placeholder="邮箱" value={email}
+            onChange={(e) => { setEmail(e.target.value); if (localErr) setLocalErr(""); }} />
+          <input className="input" placeholder="密码（至少 8 位）" type="password" value={password}
+            onChange={(e) => { setPassword(e.target.value); if (localErr) setLocalErr(""); }} />
+          {shownErr && <div className="hint--box">{shownErr}</div>}
+          <button className="btn btn--primary btn--block" onClick={submit}>{mode === "login" ? "登 录" : "注 册"}</button>
+          <button className="link-btn" style={{ width: "100%", justifyContent: "center", marginTop: "var(--sp-1)" }}
+            onClick={() => p.setPage("list")}>先逛逛 →</button>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ─── 个人中心页（学习记录 / 账户）───
+function ProfilePage(p: AppState) {
+  const [redirected, setRedirected] = useState(false);
+  useEffect(() => {
+    if (!p.user) { p.setPage("login"); setRedirected(true); }
+  }, [p.user]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!p.user || redirected) {
+    return (
+      <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span className="meta">请先登录</span>
+      </div>
+    );
+  }
+
+  const records = (p.progressList || [])
+    .map((r: any) => ({ ...r, video: p.videos.find((v: any) => v.id === r.video_id) }))
+    .filter((r: any) => r.video);
+  const learnedSentences = records.reduce((acc: number, r: any) => acc + (r.last_sentence_index + 1), 0);
+  const wordCount = (p.wordBook || []).length;
+
+  const stat = (label: string, value: number | string) => (
+    <div className="stat-card fade-up">
+      <div className="stat-card__value">{value}</div>
+      <div className="stat-card__label">{label}</div>
+    </div>
+  );
+
+  return (
+    <div className="app">
+      <div className="navbar">
+        <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+        <div className="navbar__title">个人中心</div>
+      </div>
+
+      <div className="page-pad">
+        <div className="list-card" style={{ marginBottom: "var(--sp-4)" }}>
+          <div className="row">
+            <div className="avatar"><Icon name="user" size={22} /></div>
+            <div>
+              <div className="title-strong" style={{ fontSize: "var(--fs-body)" }}>{p.user.email}</div>
+              <div className="meta">已登录</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-4)" }}>
+          {stat("学习视频", records.length)}
+          {stat("学习句数", learnedSentences)}
+          {stat("生词", wordCount)}
+        </div>
+
+        <div className="section-label" style={{ marginBottom: "var(--sp-2)" }}>学习记录</div>
+        {records.length === 0 ? (
+          <div className="empty">还没有学习记录，去跟读一个视频吧</div>
+        ) : (
+          records.map((r: any) => (
+            <div key={r.video_id} onClick={() => p.openVideo(r.video_id)}
+              className="list-card list-card--click list-card--sm fade-up" style={{ marginBottom: "var(--sp-3)" }}>
+              <div className="row row--between">
+                <div style={{ minWidth: 0 }}>
+                  <div className="title-strong" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.video.title}</div>
+                  <div className="meta" style={{ marginTop: 4 }}>上次学到 第{r.last_sentence_index + 1}句 / 共{r.video.sentence_count}句</div>
+                </div>
+                <div className="link-btn" style={{ flexShrink: 0, marginLeft: "var(--sp-3)" }}>继续 →</div>
+              </div>
+            </div>
+          ))
+        )}
+
+        <button className="btn btn--danger btn--block" style={{ marginTop: "var(--sp-4)" }} onClick={p.handleLogout}>退出登录</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── 添加视频页 ───
+function AddVideoPage(p: AppState) {
+  const backBtn = (
+    <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+  );
+  const header = (
+    <div className="navbar">
+      {backBtn}
+      <div className="navbar__title">添加视频</div>
+    </div>
+  );
+
+  if (!p.user) {
+    return (
+      <div className="app">
+        {header}
+        <div className="locked-state">
+          <span className="locked-state__icon"><Icon name="lock" size={48} /></span>
+          <div>登录后即可提交 YouTube 视频自动解析跟读</div>
+          <button className="btn btn--primary" onClick={() => p.setPage("login")}>登录</button>
+        </div>
+      </div>
+    );
+  }
+
+  const status = p.parseJob?.status;
+  const pct = status === "processing" ? 55 : status === "done" ? 100 : 10;
+  const statusText =
+    status === "done" ? "解析完成"
+      : status === "processing" ? "正在下载视频并解析中英文字幕…"
+        : "任务已提交，排队中…";
+
+  return (
+    <div className="app">
+      {header}
+      <div className="page-pad" style={{ maxWidth: 640, margin: "0 auto" }}>
+        <div className="card card--pad fade-up">
+          <div className="title-strong" style={{ marginBottom: "var(--sp-1)" }}>粘贴 YouTube 链接，自动解析成跟读视频</div>
+          <div className="hint" style={{ marginBottom: "var(--sp-4)" }}>
+            提交后系统会自动下载视频、解析中英文字幕并入库，完成后直接打开跟读页。解析通常需几十秒到几分钟，请耐心等待。
+          </div>
+
+          <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+            <input
+              className="input"
+              value={p.parseInput}
+              onChange={(e) => p.setParseInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !p.parseJob) p.submitVideoUrl(p.parseInput); }}
+              placeholder="https://www.youtube.com/watch?v=..."
+              disabled={!!p.parseJob}
+              style={{ opacity: p.parseJob ? 0.7 : 1 }}
+            />
+            <button
+              className="btn btn--primary"
+              onClick={() => p.submitVideoUrl(p.parseInput)}
+              disabled={!!p.parseJob || !p.parseInput.trim()}
+            >{p.parseJob ? "解析中…" : "解析"}</button>
+          </div>
+
+          {p.parseJob && (
+            <div style={{ marginTop: "var(--sp-4)" }}>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="meta" style={{ marginTop: "var(--sp-2)" }}>
+                {status === "processing" ? <Icon name="spinner" size={13} spin /> : status === "done" ? <Icon name="checkCircle" size={13} /> : null} {statusText}
+              </div>
+            </div>
+          )}
+
+          {p.parseError && <div className="hint--box">{p.parseError}</div>}
+        </div>
+
+        <div className="meta" style={{ marginTop: "var(--sp-4)", textAlign: "center" }}>
+          支持 youtube.com/watch?v=…、youtu.be/… 等格式（含列表参数亦可）
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 单句操作按钮（复制 / 收藏 / 笔记）───
+function ActionBtn({ children, onClick, active, badge, label }: { children: React.ReactNode; onClick: () => void; active?: boolean; badge?: boolean; label: string }) {
+  return (
+    <button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`action-btn ${active ? "action-btn--active" : ""}`}
+    >
+      {children}
+      {badge && <span className="action-btn__dot" />}
+    </button>
+  );
+}
+
+// 听写 / 挖空：每句独立的「检查 / 重做」按钮
+function CheckBtn({ checked, onCheck, onRedo, label }: { checked: boolean; onCheck: () => void; onRedo: () => void; label: string }) {
+  return (
+    <button
+      aria-label={label}
+      onClick={checked ? onRedo : onCheck}
+      className="btn btn--sm btn--primary"
+    >
+      {checked ? <><Icon name="redo" size={13} /> 重做</> : <><Icon name="check" size={13} /> 检查</>}
+    </button>
+  );
+}
+
+// ─── 笔记内联编辑器 ───
+function NoteEditor({ s, p }: { s: Sentence; p: AppState }) {
+  const [val, setVal] = useState(p.notes[s.id] || "");
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="card card--pad" style={{ marginTop: "var(--sp-2)" }}>
+      <textarea
+        className="input"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        placeholder="写点笔记…"
+        rows={3}
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-2)", marginTop: "var(--sp-1)" }}>
+        <button className="btn btn--sm btn--ghost" onClick={() => p.closeNote()}>取消</button>
+        <button className="btn btn--sm btn--primary" onClick={() => { p.saveNoteFor(s.id, val); p.closeNote(); }}>保存</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── 跟读模式：每句录音 / 播放录音 / 评价分数 ───
+function ShadowActions({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
+  const rec = p.recordings[s.id];
+  const isRec = p.recordingId === s.id;
+  return (
+    <>
+      <button
+        aria-label={`record-${idx}`}
+        onClick={() => (isRec ? p.stopRecord() : p.startRecord(s.id))}
+        title={isRec ? "停止录音" : "录音"}
+        className="action-btn"
+        style={isRec ? { background: "var(--danger)", borderColor: "var(--danger)", color: "#fff" } : undefined}
+      >
+        <Icon name={isRec ? "stop" : "mic"} size={15} />
+      </button>
+      <button
+        aria-label={`play-record-${idx}`}
+        onClick={() => p.playRecord(s.id)}
+        title="播放录音"
+        disabled={!rec?.url}
+        className="action-btn"
+        style={{ opacity: rec?.url ? 1 : 0.4 }}
+      >
+        <Icon name="volume" size={15} />
+      </button>
+      {rec?.score ? (
+        <button
+          aria-label={`eval-${idx}`}
+          onClick={() => p.openEval(s.id)}
+          title="评价详情"
+          className="score-badge"
+          style={{ height: 28, padding: "0 10px" }}
+        >
+          <Icon name="trophy" size={13} /> {rec.score.overall}
+        </button>
+      ) : (
+        <button aria-label={`eval-${idx}`} onClick={() => p.openEval(s.id)} title="评价详情" className="action-btn">
+          <Icon name="chart" size={15} />
+        </button>
+      )}
+    </>
+  );
+}
+
+// ─── 跟读页单句卡片 ───
+function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
+  const isCurrent = idx === p.currentIndex;
+  const tokens = tokenize(s.english_text);
+
+  const showKaraoke = p.wordHighlight && isCurrent && (p.practiceMode === "watch" || p.intensiveRevealed);
+  const wordCount = tokens.filter((t) => !t.space).length;
+  let activeWord = -1;
+  if (showKaraoke) {
+    const prog = (p.playhead - s.start_time) / Math.max(0.001, s.end_time - s.start_time);
+    activeWord = Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
+  }
+
+  let wi = -1;
+  const renderEnglish = (withKaraoke: boolean) =>
+    tokens.map((t, i) => {
+      if (t.space) return <span key={i}>{t.text}</span>;
+      wi++;
+      const isSpoken = withKaraoke && wi < activeWord;
+      const isActive = withKaraoke && wi === activeWord;
+      const color = isSpoken
+        ? "var(--on-primary)"
+        : isActive
+          ? "var(--primary)"
+          : t.isHard ? "var(--danger)"
+            : "var(--text)";
+      return (
+        <span
+          key={i}
+          onClick={(e) => { if (t.isHard) { e.stopPropagation(); p.handleWordClick(t.text); } }}
+          style={{
+            color,
+            fontWeight: (isActive || t.isHard) ? "var(--fw-bold)" : "var(--fw-regular)",
+            cursor: t.isHard ? "pointer" : "default",
+            background: isSpoken ? "var(--primary)" : isActive ? "var(--primary-soft)" : "transparent",
+            borderRadius: "var(--sp-1)",
+            padding: (isSpoken || isActive) ? "1px 3px" : 0,
+            textDecoration: isActive ? "underline" : "none",
+            transition: "background 0.15s, color 0.15s",
+          }}
+        >{t.text}</span>
+      );
+    });
+
+  const showEnglish = p.subtitleMode === "english" || p.subtitleMode === "both";
+  const showChinese = !!s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both");
+
+  const subtitleBlock = (
+    <>
+      {showEnglish && (
+        <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)", marginBottom: s.chinese_text && showChinese ? 6 : 0 }}>
+          {renderEnglish(showKaraoke)}
+        </div>
+      )}
+      {showChinese && (
+        <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", lineHeight: "var(--lh-body)" }}>{s.chinese_text}</div>
+      )}
+    </>
+  );
+
+  const fullSubtitle = (
+    <>
+      <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)", marginBottom: s.chinese_text && showChinese ? 6 : 0 }}>
+        {renderEnglish(showKaraoke)}
+      </div>
+      {s.chinese_text && showChinese && <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", lineHeight: "var(--lh-body)" }}>{s.chinese_text}</div>}
+    </>
+  );
+
+  let body: React.ReactNode = null;
+
+  if (p.practiceMode === "watch" || p.practiceMode === "shadow") {
+    body = subtitleBlock;
+    if (p.practiceMode === "shadow" && isCurrent && p.recognizedText) {
+      body = (
+        <>
+          {subtitleBlock}
+          <div className="shadow-result">
+            <div className="shadow-result__label">你的跟读：</div>
+            <div style={{ fontSize: "calc(var(--fs-body) - 1px)", lineHeight: "var(--lh-body)" }}>
+              {compareWords(s.english_text, p.recognizedText).originalWords.map((w, i) => (
+                <span key={i} className={p.wordMatches[i] ? "word-ok" : "word-bad"} style={{ marginRight: 4 }}>{w}</span>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    }
+  } else if (p.practiceMode === "intensive") {
+    body = p.intensiveRevealed ? fullSubtitle : (
+      <div style={{ position: "relative", borderRadius: "var(--r-md)" }}>
+        <div style={{ filter: "blur(6px)", opacity: isCurrent ? 1 : 0.4, userSelect: "none", pointerEvents: "none" }}>
+          {fullSubtitle}
+        </div>
+        <div
+          onClick={isCurrent ? (e) => { e.stopPropagation(); p.revealIntensive(); } : undefined}
+          className={`intensive-mask ${isCurrent ? "" : "intensive-mask--dim"}`}
+        >
+          {isCurrent && <><Icon name="lock" size={14} /> 字幕已隐藏 · 点击显示</>}
+        </div>
+      </div>
+    );
+  } else if (p.practiceMode === "dictation") {
+    const showHint = !!s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both");
+    const dm = compareWords(s.english_text, p.dictationTexts[s.id] || "");
+    const checked = !!p.dictationChecked[s.id];
+    body = (
+      <div>
+        {showHint && <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", marginBottom: 8 }}>{s.chinese_text}</div>}
+        <textarea
+          className="input"
+          value={p.dictationTexts[s.id] || ""}
+          onChange={(e) => p.setDictationText(s.id, e.target.value)}
+          placeholder="听写：写下你听到的英文"
+          rows={2}
+          disabled={checked}
+          onClick={(e) => e.stopPropagation()}
+          style={{ resize: "none", background: checked ? "color-mix(in srgb, var(--text) 3%, transparent)" : "transparent" }}
+        />
+        {checked && (
+          <div style={{ marginTop: 8, fontSize: "calc(var(--fs-body) - 1px)", lineHeight: "var(--lh-body)" }}>
+            {dm.originalWords.map((w, i) => (
+              <span key={i} className={dm.matches[i] ? "word-ok" : "word-bad"} style={{ marginRight: 4 }}>{w}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  } else if (p.practiceMode === "cloze") {
+    const wordIdx = tokens.map((t, i) => ({ t, i })).filter((o) => !o.t.space);
+    const hardIdx = wordIdx.filter((o) => o.t.isHard).map((o) => o.i);
+    let blanks = hardIdx;
+    if (blanks.length < Math.min(3, wordIdx.length)) {
+      const others = wordIdx.filter((o) => !o.t.isHard && !blanks.includes(o.i)).map((o) => o.i);
+      const need = Math.min(3, wordIdx.length) - blanks.length;
+      for (let k = 0; k < need; k++) blanks.push(others[Math.floor((k * others.length) / Math.max(1, need))] ?? others[others.length - 1]);
+    }
+    const blankSet = new Set(blanks);
+    const showHint = !!s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both");
+    const checked = !!p.clozeChecked[s.id];
+    const answers = p.clozeAnswers[s.id] || {};
+    body = (
+      <div>
+        {showHint && <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", marginBottom: 8 }}>{s.chinese_text}</div>}
+        <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)" }}>
+          {tokens.map((t, i) => {
+            if (t.space) return <span key={i}>{t.text}</span>;
+            if (blankSet.has(i)) {
+              const target = t.text.toLowerCase().replace(/[^a-z']/g, "");
+              const answer = (answers[i] || "").trim().toLowerCase();
+              return (
+                <input
+                  key={i}
+                  value={answers[i] || ""}
+                  onChange={(e) => p.setClozeAnswer(s.id, i, e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={checked}
+                  style={{
+                    fontFamily: "var(--ff)", fontSize: "var(--fs-sentence)", margin: "0 2px",
+                    border: "none",
+                    borderBottom: `2px solid ${checked ? (answer === target ? "var(--success)" : "var(--danger)") : "var(--border)"}`,
+                    background: checked && answer !== target ? "color-mix(in srgb, var(--danger) 8%, transparent)" : "transparent",
+                    color: "var(--text)", width: `${Math.max(3, t.text.length + 1)}ch`, textAlign: "center",
+                  }}
+                />
+              );
+            }
+            return <span key={i} style={{ color: t.isHard ? "var(--danger)" : "var(--text)", fontWeight: t.isHard ? "var(--fw-bold)" : "var(--fw-regular)" }}>{t.text}</span>;
+          })}
+        </div>
+        {checked && (
+          <div className="meta" style={{ marginTop: 8 }}>
+            答案：{wordIdx.filter((o) => blankSet.has(o.i)).map((o) => o.t.text).join(" / ")}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const cls = `sentence ${idx < p.currentIndex ? "sentence--read" : ""} ${isCurrent ? "sentence--current" : ""}`;
+  return (
+    <div
+      id={`sent-${idx}`}
+      onClick={() => p.jumpToSentence(idx)}
+      className={cls}
+    >
+      {p.practiceMode === "intensive" && isCurrent && (
+        <button
+          aria-label="toggle-reveal"
+          onClick={(e) => { e.stopPropagation(); p.revealIntensive(); }}
+          title={p.intensiveRevealed ? "隐藏原文" : "显示原文"}
+          className="reveal-btn"
+        ><Icon name={p.intensiveRevealed ? "eyeOff" : "eye"} size={15} /></button>
+      )}
+      {body}
+      <div className="sentence__bar" onClick={(e) => e.stopPropagation()}>
+        <span className="sentence__idx">{idx + 1}</span>
+        <button aria-label={`play-sentence-${idx}`} onClick={() => p.playSentenceAt(idx)} className="round-play"><Icon name="play" size={11} /></button>
+        <div style={{ flex: 1 }} />
+        {p.practiceMode === "intensive" && (
+          <>
+            <ActionBtn label="复制" onClick={() => p.copySentence(s.english_text)}><Icon name="copy" size={15} /></ActionBtn>
+            <ActionBtn label="收藏" active={p.favorites.has(s.id)} onClick={() => p.toggleFav(s.id)}>
+              <Icon name={p.favorites.has(s.id) ? "starFill" : "star"} size={15} />
+            </ActionBtn>
+            <ActionBtn label="笔记" badge={!!p.notes[s.id]} onClick={() => p.openNote(s.id)}><Icon name="note" size={15} /></ActionBtn>
+          </>
+        )}
+        {p.practiceMode === "dictation" && (
+          <CheckBtn label={`check-dictation-${idx}`} checked={!!p.dictationChecked[s.id]} onCheck={() => p.checkDictation(s.id)} onRedo={() => p.redoDictation(s.id)} />
+        )}
+        {p.practiceMode === "cloze" && (
+          <CheckBtn label={`check-cloze-${idx}`} checked={!!p.clozeChecked[s.id]} onCheck={() => p.checkCloze(s.id)} onRedo={() => p.redoCloze(s.id)} />
+        )}
+        {p.practiceMode === "shadow" && <ShadowActions p={p} s={s} idx={idx} />}
+      </div>
+      {p.practiceMode === "intensive" && p.openNoteId === s.id && <NoteEditor s={s} p={p} />}
     </div>
   );
 }
 
 export default function App() {
   const p = useApp();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
+  const onToggleTheme = () => setTheme(toggleTheme());
 
-  // （连续播放模型）进页自动播放由 video onLoadedMetadata → p.onVideoLoaded 完成；
-  // 切句/跳句由 p.jumpToSentence 显式 seek；高亮跟随播放头（p.handleTimeUpdate）
-
-  // 倍速同步到 video 元素
   useEffect(() => {
     if (p.videoRef.current) p.videoRef.current.playbackRate = p.rate;
   }, [p.rate, p.page, p.currentVideoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 切句时把当前句气泡滚动到视口中部
   useEffect(() => {
     if (p.page !== "player") return;
     document.getElementById(`sent-${p.currentIndex}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [p.page, p.currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (p.loading) return <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, display: "flex", alignItems: "center", justifyContent: "center", color: color.textLight }}>Loading...</div>;
+  if (p.loading) return <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><span className="meta">Loading…</span></div>;
 
-  if (p.page === "login") return <LoginPage {...p} />;
+  if (p.page === "login") return <LoginPage {...p} theme={theme} onToggleTheme={onToggleTheme} />;
+
+  if (p.page === "profile") return <ProfilePage {...p} />;
+
+  if (p.page === "add") return <AddVideoPage {...p} />;
 
   // ─── 视频列表页 ───
   if (p.page === "list") {
     return (
-      <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, paddingBottom: 80 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: `${space.lg}px ${space.xl}px` }}>
-          <div style={{ fontSize: FS.pageTitle, fontWeight: FW.heavy, color: color.primary }}>ShadowingMaster</div>
-          <div style={{ display: "flex", gap: space.md, alignItems: "center" }}>
+      <div className="app">
+        <div className="navbar">
+          <div className="navbar__brand">ShadowingMaster</div>
+          <div className="navbar__spacer" />
+          <div className="navbar__actions">
             {p.user ? (
               <>
-                <span style={{ color: color.textLight, fontSize: FS.secondary }}>{p.user.email}</span>
-                <button onClick={() => p.setPage("wordbook")} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>📖</button>
-                <button onClick={p.handleLogout} style={{ background: color.card, border: `1px solid ${color.border}`, borderRadius: radius.sm, padding: "6px 12px", fontFamily: FF, fontSize: FS.meta, color: color.text, cursor: "pointer" }}>退出</button>
+                <button className="link-btn" onClick={() => p.setPage("profile")} aria-label="个人中心">
+                  <Icon name="user" size={18} />
+                  <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.user.email}</span>
+                </button>
+                <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本"><Icon name="book" size={18} /></button>
+                <button className="icon-btn" onClick={() => p.setPage("add")} title="添加视频" aria-label="添加视频"><Icon name="plus" size={18} /></button>
+                <button className="btn btn--sm btn--outline" onClick={p.handleLogout}>退出</button>
               </>
             ) : (
-              <button onClick={() => p.setPage("login")} style={{ background: color.primary, color: "#fff", border: "none", borderRadius: radius.pill, padding: "8px 20px", fontFamily: FF, fontSize: FS.secondary, fontWeight: FW.semibold, cursor: "pointer" }}>登录</button>
+              <button className="btn btn--sm btn--primary" onClick={() => p.setPage("login")}>登录</button>
             )}
           </div>
         </div>
-        <div style={{ padding: `0 ${space.pagePadding}px` }}>
+
+        <div className="page-pad">
           {p.videos.map((v) => (
-            <div key={v.id} onClick={() => p.openVideo(v.id)} style={{ background: color.card, borderRadius: radius.lg, marginBottom: space.lg, overflow: "hidden", boxShadow: shadow.card, cursor: "pointer" }}>
-              <div style={{ height: 180, background: "linear-gradient(135deg, #FFE5D9, #FFD6BA)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {v.thumbnail_url ? <img src={mediaUrl(v.thumbnail_url)} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ color: color.primary }}>🎬</span>}
+            <div key={v.id} onClick={() => p.openVideo(v.id)} className="video-card fade-up" style={{ marginBottom: "var(--sp-4)" }}>
+              <div className="video-card__thumb">
+                {v.thumbnail_url ? <img src={mediaUrl(v.thumbnail_url)} alt="" /> : <Icon name="film" size={28} />}
               </div>
-              <div style={{ padding: space.lg }}>
-                <div style={{ fontWeight: FW.bold, fontSize: FS.body, color: color.text, marginBottom: 6 }}>{v.title}</div>
-                <div style={{ display: "flex", gap: space.md, fontSize: FS.meta, color: color.textLight }}>
-                  <span>⏱ {Math.floor(v.duration_seconds / 60)}:{String(v.duration_seconds % 60).padStart(2, "0")}</span>
-                  <span>📝 {v.sentence_count}句</span>
+              <div className="video-card__body">
+                <div className="title-strong" style={{ marginBottom: 6 }}>{v.title}</div>
+                <div className="row" style={{ gap: "var(--sp-3)", fontSize: "var(--fs-meta)", color: "var(--text-2)" }}>
+                  <span className="row" style={{ gap: 4 }}><Icon name="clock" size={13} /> {Math.floor(v.duration_seconds / 60)}:{String(v.duration_seconds % 60).padStart(2, "0")}</span>
+                  <span className="row" style={{ gap: 4 }}><Icon name="lines" size={13} /> {v.sentence_count}句</span>
+                  {p.progressMap && p.progressMap[v.id] != null && (
+                    <span style={{ color: "var(--primary)", fontWeight: "var(--fw-semibold)" }}>上次学到 第{p.progressMap[v.id] + 1}句</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -96,21 +607,21 @@ export default function App() {
   // ─── 生词本页 ───
   if (p.page === "wordbook") {
     return (
-      <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, paddingBottom: 80 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: space.md, padding: `${space.lg}px ${space.xl}px` }}>
-          <button onClick={() => p.setPage("list")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
-          <div style={{ fontSize: FS.title, fontWeight: FW.bold, color: color.text }}>我的生词本</div>
+      <div className="app">
+        <div className="navbar">
+          <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+          <div className="navbar__title">我的生词本</div>
         </div>
-        <div style={{ padding: `0 ${space.pagePadding}px` }}>
-          {!p.user ? <div style={{ textAlign: "center", padding: 60, color: color.textLight, fontSize: FS.secondary }}>请登录后查看生词本</div> :
-           p.wordBook.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: color.textLight, fontSize: FS.secondary }}>还没有收藏生词</div> :
+        <div className="page-pad">
+          {!p.user ? <div className="empty">请登录后查看生词本</div> :
+           p.wordBook.length === 0 ? <div className="empty">还没有收藏生词</div> :
            p.wordBook.map((w: any) => (
-            <div key={w.id} onClick={() => p.openWordOrigin(w)} style={{ background: color.card, borderRadius: radius.lg - 2, padding: space.lg, marginBottom: space.md, boxShadow: shadow.card, cursor: w.video_id && w.sentence_id ? "pointer" : "default" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.xs }}>
-                <div style={{ fontSize: FS.title, fontWeight: FW.bold, color: color.text }}>{w.word}</div>
-                {w.video_id && w.sentence_id && <div style={{ fontSize: FS.meta, color: color.primary, fontWeight: FW.semibold }}>↩ 回到原句</div>}
+            <div key={w.id} onClick={() => p.openWordOrigin(w)} className={`list-card list-card--sm fade-up ${w.video_id && w.sentence_id ? "list-card--click" : ""}`} style={{ marginBottom: "var(--sp-3)" }}>
+              <div className="row row--between" style={{ marginBottom: "var(--sp-1)" }}>
+                <div className="title-strong" style={{ fontSize: "var(--fs-title)" }}>{w.word}</div>
+                {w.video_id && w.sentence_id && <div className="link-btn" style={{ color: "var(--primary)" }}><Icon name="reply" size={13} /> 回到原句</div>}
               </div>
-              <div style={{ fontSize: FS.secondary, color: color.textLight, lineHeight: font.lineHeight.body }}>{w.definition || "暂无释义"}</div>
+              <div className="hint">{w.definition || "暂无释义"}</div>
             </div>
           ))}
         </div>
@@ -120,17 +631,82 @@ export default function App() {
 
   // ─── 跟读页 ───
   return (
-    <div style={{ minHeight: "100vh", background: color.bg, fontFamily: FF, paddingBottom: 110 }}>
-      {/* 头部 + 播放器吸顶固定：字幕滚动时播放器不滚走 */}
-      <div style={{ position: "sticky", top: 0, zIndex: 20, background: color.bg, paddingBottom: space.sm }}>
-        <div style={{ display: "flex", alignItems: "center", gap: space.md, padding: `${space.md}px ${space.lg}px` }}>
-          <button onClick={() => p.setPage("list")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
-          <div style={{ fontSize: FS.body - 1, fontWeight: FW.semibold, color: color.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.currentVideo?.title || "跟读"}</div>
-          <button onClick={() => p.setPage("wordbook")} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>📖</button>
+    <div className="app">
+      <div className="player-bar">
+        <div className="navbar">
+          <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+          <div className="navbar__title" style={{ fontSize: "calc(var(--fs-body) - 1px)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.currentVideo?.title || "跟读"}</div>
+          <div className="navbar__actions">
+            <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本"><Icon name="book" size={18} /></button>
+            <div style={{ position: "relative", zIndex: "var(--z-popover)" }}>
+              <button
+                aria-label="settings"
+                onClick={() => setSettingsOpen((o) => !o)}
+                className={`icon-btn ${settingsOpen ? "icon-btn--on" : ""}`}
+              ><Icon name="gear" size={18} /></button>
+              {settingsOpen && (
+                <>
+                  <div aria-label="settings-backdrop" onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1200 }} />
+                  <div onClick={(e) => e.stopPropagation()} className="popover">
+                    <div className="section-label" style={{ marginBottom: "var(--sp-3)" }}>偏好设置</div>
+
+                    <div style={{ marginBottom: "var(--sp-3)" }}>
+                      <div className="setting-row__label" style={{ marginBottom: 6 }}>字幕显示</div>
+                      <div className="segmented">
+                        {(["both", "english", "chinese"] as const).map((mode) => (
+                          <button key={mode} onClick={() => p.setSubtitleMode(mode)}
+                            className={`segmented__btn ${p.subtitleMode === mode ? "segmented__btn--active" : ""}`}>
+                            {mode === "both" ? "英中" : mode === "english" ? "英文" : "中文"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="setting-row">
+                      <span className="setting-row__label">逐词高亮</span>
+                      <button onClick={() => p.setWordHighlight(!p.wordHighlight)} aria-label="toggle-word-highlight"
+                        className={`toggle ${p.wordHighlight ? "toggle--on" : ""}`}>
+                        <span className="toggle__knob" />
+                      </button>
+                    </div>
+
+                    <div className="setting-row">
+                      <span className="setting-row__label">单句循环</span>
+                      <button onClick={() => p.setLoopSingle(!p.loopSingle)} aria-label="toggle-loop-single"
+                        className={`toggle ${p.loopSingle ? "toggle--on" : ""}`}>
+                        <span className="toggle__knob" />
+                      </button>
+                    </div>
+
+                    <div className="setting-row">
+                      <span className="setting-row__label">深色模式</span>
+                      <button onClick={onToggleTheme} aria-label="toggle-theme"
+                        className={`toggle ${theme === "dark" ? "toggle--on" : ""}`}>
+                        <span className="toggle__knob" />
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: "var(--sp-3)" }}>
+                      <div className="setting-row__label" style={{ marginBottom: 6 }}>播放速度</div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {p.RATES.map((r) => (
+                          <button key={r} onClick={() => p.setRate(r)}
+                            className={`btn btn--sm ${p.rate === r ? "btn--primary" : "btn--outline"}`}
+                            style={{ flex: 1, padding: "7px 0" }}>{r}x</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="meta" style={{ marginTop: "var(--sp-3)", opacity: 0.8 }}>设置已自动保存</div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div style={{ padding: `0 ${space.pagePadding}px`, marginBottom: space.sm }}>
-          <div style={{ borderRadius: radius.lg, overflow: "hidden", background: "#000", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="page-pad" style={{ marginBottom: "var(--sp-2)" }}>
+          <div className="player-frame">
             {p.currentVideo?.video_path ? (
               <video
                 ref={p.videoRef}
@@ -148,71 +724,127 @@ export default function App() {
                 }}
               />
             ) : (
-              <div style={{ color: "#fff", fontSize: FS.secondary }}>▶ 暂无视频文件</div>
+              <div style={{ color: "#fff", fontSize: "var(--fs-secondary)" }}>暂无视频文件</div>
             )}
+            <button
+              aria-label="play-pause"
+              onClick={(e) => { e.stopPropagation(); p.togglePlay(); }}
+              className="play-fab"
+            ><Icon name={p.isPlaying ? "pause" : "play"} size={18} /></button>
           </div>
+        </div>
+
+        <div className="page-pad" style={{ paddingBottom: "var(--sp-2)", display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
+          {(["intensive", "shadow", "dictation", "cloze"] as const).map((m) => (
+            <button key={m} onClick={() => p.setPracticeMode(m)}
+              className={`chip ${p.practiceMode === m ? "chip--active" : ""}`}>
+              {m === "intensive" ? "精听" : m === "shadow" ? "跟读" : m === "dictation" ? "听写" : "挖空"}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: space.sm, padding: `0 ${space.pagePadding}px`, marginBottom: space.md }}>
-        {(["both", "english", "chinese", "none"] as const).map((m) => (
-          <button key={m} onClick={() => p.setSubtitleMode(m)} style={{ padding: "6px 14px", borderRadius: radius.pill, border: "none", fontFamily: FF, background: p.subtitleMode === m ? color.primary : color.card, color: p.subtitleMode === m ? "#fff" : color.textLight, fontSize: FS.meta, cursor: "pointer" }}>{m === "both" ? "英中" : m === "english" ? "仅英文" : m === "chinese" ? "仅中文" : "盲听"}</button>
+      <div className="page-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {p.sentences.map((s, idx) => (
+          <SentenceCard key={s.id} p={p} s={s} idx={idx} />
         ))}
       </div>
 
-      <div style={{ padding: `0 ${space.pagePadding}px`, display: "flex", flexDirection: "column", gap: 10 }}>
-        {p.sentences.map((s, idx) => {
-          const isCurrent = idx === p.currentIndex;
-          const tokens = tokenize(s.english_text);
+      {p.toast && (
+        <div className="toast">{p.toast}</div>
+      )}
+
+      {p.evalOpenId != null && (() => {
+        const rec = p.recordings[p.evalOpenId];
+        const sc = rec?.score;
+        if (!sc) {
           return (
-            <div key={s.id} id={`sent-${idx}`} onClick={() => p.jumpToSentence(idx)} style={{ background: isCurrent ? color.primarySoft : idx < p.currentIndex ? color.readBg : color.card, borderRadius: radius.lg, padding: space.md + 2, border: isCurrent ? `2px solid ${color.primary}` : `1px solid ${color.border}`, cursor: "pointer" }}>
-              {(p.subtitleMode === "english" || p.subtitleMode === "both") && (
-                <div style={{ fontSize: FS.sentence, color: color.text, lineHeight: font.lineHeight.sentence, marginBottom: s.chinese_text && p.subtitleMode === "both" ? 6 : 0 }}>
-                  {tokens.map((t, i) => (
-                    <span key={i} onClick={(e) => { if (t.isHard) { e.stopPropagation(); p.handleWordClick(t.text); } }} style={{ color: t.isHard ? color.hardWord : color.text, fontWeight: t.isHard ? FW.bold : FW.regular, cursor: t.isHard ? "pointer" : "default", background: t.isHard ? "rgba(231,76,60,0.08)" : "transparent", borderRadius: space.xs, padding: t.isHard ? "0 2px" : 0 }}>{t.text}</span>
-                  ))}
-                </div>
-              )}
-              {s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both") && (
-                <div style={{ fontSize: FS.secondary, color: color.textLight, lineHeight: font.lineHeight.body }}>{s.chinese_text}</div>
-              )}
-              {p.subtitleMode === "none" && isCurrent && (
-                <div style={{ fontSize: FS.secondary, color: color.textLight, textAlign: "center", padding: `${space.sm}px 0` }}>🎧 盲听中…</div>
-              )}
-              {/* 句号 + 单句播放（不切换当前句） */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
-                <span style={{ fontSize: FS.tiny, color: color.textLight }}>{idx + 1}</span>
-                <button aria-label={`play-sentence-${idx}`} onClick={() => p.playSentenceAt(idx)} style={{ width: 26, height: 26, borderRadius: "50%", border: `1px solid ${color.border}`, background: color.card, color: color.primary, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", paddingLeft: 2 }}>▶</button>
+            <div className="modal-backdrop" onClick={p.closeEval}>
+              <div className="modal modal--sm" onClick={(e) => e.stopPropagation()}>
+                <div className="empty__icon"><Icon name="mic" size={40} /></div>
+                <div className="title-strong" style={{ marginBottom: "var(--sp-1)" }}>还没有录音</div>
+                <div className="hint">点击本句的「录音」按钮，完成跟读后会自动生成评价。</div>
+                <button className="btn btn--primary btn--block" style={{ marginTop: "var(--sp-4)" }} onClick={p.closeEval}>知道了</button>
               </div>
-              {isCurrent && p.recognizedText && (
-                <div style={{ marginTop: 10, padding: 10, background: color.card, borderRadius: radius.md - 2, border: `1px dashed ${color.border}` }}>
-                  <div style={{ fontSize: FS.tiny, color: color.textLight, marginBottom: space.xs }}>🎤 你的跟读：</div>
-                  <div style={{ fontSize: FS.body - 1, lineHeight: font.lineHeight.body }}>
-                    {compareWords(s.english_text, p.recognizedText).originalWords.map((w, i) => (
-                      <span key={i} style={{ color: p.wordMatches[i] ? color.correct : color.hardWord, fontWeight: p.wordMatches[i] ? FW.regular : FW.bold, textDecoration: p.wordMatches[i] ? "none" : "line-through", marginRight: 4 }}>{w}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           );
-        })}
-      </div>
+        }
+        return (
+          <div className="modal-backdrop" onClick={p.closeEval}>
+            <div className="modal modal--md" onClick={(e) => e.stopPropagation()}>
+              <div className="row" style={{ marginBottom: "var(--sp-4)" }}>
+                <div className="score-circle" style={{ background: scoreVar(sc.overall) }}>
+                  <span className="score-circle__num">{sc.overall}</span>
+                  <span className="score-circle__unit">分</span>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="title-strong" style={{ fontSize: "var(--fs-secondary)" }}>跟读评价</div>
+                  <div className="meta" style={{ marginTop: 2 }}>{scoreLabel(sc.overall)}</div>
+                </div>
+                <button className="modal__close" onClick={p.closeEval} aria-label="close-eval"><Icon name="close" size={24} /></button>
+              </div>
 
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: space.sm, padding: `10px ${space.md}px`, background: "rgba(255,248,240,0.95)", backdropFilter: "blur(8px)", borderTop: `1px solid ${color.border}` }}>
-        <button aria-label="play-pause" onClick={p.togglePlay} style={{ width: 44, height: 40, borderRadius: radius.md, border: `1px solid ${color.border}`, background: color.card, fontFamily: FF, fontSize: FS.body, color: color.text, cursor: "pointer" }}>{p.isPlaying ? "⏸" : "▶"}</button>
-        <button onClick={p.startShadowing} disabled={p.isRecording} style={{ padding: "10px 22px", borderRadius: radius.pill, border: "none", fontFamily: FF, background: p.isRecording ? color.hardWord : color.primary, color: "#fff", fontSize: FS.secondary, fontWeight: FW.bold, cursor: p.isRecording ? "not-allowed" : "pointer" }}>{p.isRecording ? "🎙 录音中..." : "🎤 跟读"}</button>
-        <button aria-label="loop-single" onClick={() => p.setLoopSingle(!p.loopSingle)} style={{ width: 44, height: 40, borderRadius: radius.md, border: "none", background: p.loopSingle ? color.primary : color.card, color: p.loopSingle ? "#fff" : color.textLight, fontFamily: FF, fontSize: FS.tiny, fontWeight: FW.semibold, cursor: p.loopSingle ? "pointer" : "pointer", outline: p.loopSingle ? "none" : `1px solid ${color.border}` }}>单句</button>
-        <button aria-label="rate-toggle" onClick={p.cycleRate} style={{ width: 52, height: 40, borderRadius: radius.md, border: `1px solid ${color.border}`, background: color.card, fontFamily: FF, fontSize: FS.tiny, fontWeight: FW.semibold, color: p.rate === 1 ? color.textLight : color.primary, cursor: "pointer" }}>{p.rate}x</button>
-      </div>
+              {([["准确度", sc.accuracy], ["完整度", sc.coverage], ["流利度", sc.fluency]] as const).map(([label, val]) => (
+                <div key={label} style={{ marginBottom: "var(--sp-2)" }}>
+                  <div className="row row--between" style={{ fontSize: "var(--fs-meta)", color: "var(--text-2)", marginBottom: 4 }}>
+                    <span>{label}</span><span style={{ color: "var(--text)" }}>{val}</span>
+                  </div>
+                  <div className="bar">
+                    <div className="bar__fill" style={{ width: `${val}%`, background: scoreVar(val) }} />
+                  </div>
+                </div>
+              ))}
+
+              <div className="meta" style={{ margin: "calc(var(--sp-2) * 1px) 0 6px" }}>逐词对照</div>
+              <div className="scroll-y" style={{ overflowY: "auto", flex: 1 }}>
+                <div style={{ fontSize: "calc(var(--fs-body) - 1px)", lineHeight: "var(--lh-body)", display: "flex", flexWrap: "wrap", gap: "4px 6px" }}>
+                  {sc.perWord.map((w, i) => (
+                    <span key={i} className={w.ok ? "word-ok" : "word-bad"}>{w.word}</span>
+                  ))}
+                </div>
+                {sc.recognizedText && (
+                  <div className="meta" style={{ marginTop: "var(--sp-3)", lineHeight: "var(--lh-body)" }}>
+                    识别文本：{sc.recognizedText}
+                  </div>
+                )}
+              </div>
+
+              <div className="meta" style={{ marginTop: "var(--sp-3)", opacity: 0.75 }}>
+                评分为本地语音识别的参考结果，仅供参考
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {p.selectedWord && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: space.xl, fontFamily: FF }} onClick={p.closeWord}>
-          <div style={{ background: color.card, borderRadius: radius.xl, padding: space.xxl, width: "100%", maxWidth: 320, boxShadow: shadow.card }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 24, fontWeight: FW.heavy, color: color.text, marginBottom: space.sm }}>{p.selectedWord}</div>
-            <div style={{ fontSize: FS.secondary, color: color.textLight, lineHeight: font.lineHeight.body, marginBottom: space.xl }}>{p.wordDef}</div>
-            {p.user && <button onClick={p.addToWordBook} style={{ width: "100%", padding: space.md + 2, borderRadius: radius.md, border: "none", fontFamily: FF, background: color.primary, color: "#fff", fontWeight: FW.bold, fontSize: FS.body - 1, cursor: "pointer" }}>✚ 加入生词本</button>}
-            <button onClick={p.closeWord} style={{ width: "100%", marginTop: 10, padding: space.md, background: "transparent", border: "none", fontFamily: FF, fontSize: FS.secondary, color: color.textLight, cursor: "pointer" }}>关闭</button>
+        <div className="modal-backdrop" onClick={p.closeWord}>
+          <div className="modal modal--md" onClick={(e) => e.stopPropagation()}>
+            <div className="word-head">
+              <div className="word-head__text">{p.selectedWord}</div>
+              {p.wordDetail?.phonetic && <div className="word-head__phon">{p.wordDetail.phonetic}</div>}
+              <button aria-label="speak-word" onClick={() => p.speakWord(p.selectedWord!)} className="icon-btn" style={{ marginLeft: "auto" }}><Icon name="volume" size={16} /></button>
+            </div>
+
+            <div className="scroll-y" style={{ overflowY: "auto", marginBottom: "var(--sp-4)" }}>
+              {!p.wordDetail && <div className="hint">加载中…</div>}
+              {p.wordDetail?.notFound && <div className="hint">未找到在线释义，仍可加入生词本自行备注。</div>}
+              {p.wordDetail?.meanings?.map((m, i) => (
+                <div key={i} style={{ marginBottom: "var(--sp-3)" }}>
+                  <div className="pos-tag">{posLabel(m.partOfSpeech)}</div>
+                  <div className="meaning">{m.definition}</div>
+                  {m.example && (
+                    <div className="example">
+                      “{m.example}”
+                      <button aria-label={`speak-example-${i}`} onClick={() => p.speakWord(m.example!)} className="example__speak"><Icon name="volume" size={12} /></button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {p.user && <button onClick={p.addToWordBook} className="btn btn--primary btn--block" style={{ marginBottom: 10 }}><Icon name="plus" size={16} /> 加入生词本</button>}
+            <button onClick={p.closeWord} className="btn btn--ghost btn--block">关闭</button>
           </div>
         </div>
       )}
