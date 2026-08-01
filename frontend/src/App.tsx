@@ -846,6 +846,8 @@ export default function App() {
           </div>
         </div>
 
+        <div className="practice__divider" />
+
         <div className="practice__modebar">
           {(["view", "shadow", "dictation", "cloze"] as const).map((m) => (
             <button key={m} onClick={() => p.setPracticeMode(m)}

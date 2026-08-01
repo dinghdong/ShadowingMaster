@@ -395,6 +395,11 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
   padding-top: var(--sp-2);
 }
+.practice__divider {
+  height: 1px;
+  background: var(--border);
+  margin-top: var(--sp-3);
+}
 .practice__subtitle-toggle {
   display: inline-flex; align-items: center; gap: 5px;
   margin-left: auto;
