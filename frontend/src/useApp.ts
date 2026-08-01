@@ -232,6 +232,10 @@ export function useApp() {
     setPracticeModeState(m);
     resetSentenceState();
     // 不再清空听写/挖空：同一句话可同时保留多种练习结果
+    // 跟读模式：切入即从头播当前句，句末自动暂停，方便立刻跟读/录音
+    if (m === "shadow" && currentSentence) {
+      playFrom(currentSentence.start_time, currentSentence.end_time);
+    }
   };
 
   // 生词本 → 跳回原视频原句（无来源信息的词条不可跳）
@@ -431,22 +435,31 @@ export function useApp() {
     if (s) playFrom(s.start_time, s.end_time);
   };
 
-  // 暂停/播放切换（继续播放 = 连续模式）
+  // 暂停/播放切换（连续模式；跟读模式下仍限定在当前句内，句末自停）
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) { playEndRef.current = null; v.play().catch(() => {}); }
+    if (v.paused) {
+      if (practiceMode === "shadow" && currentSentence) {
+        // 已播到句末则从句首重来，否则从当前位置继续到句末
+        if (v.currentTime >= currentSentence.end_time - 0.05) v.currentTime = currentSentence.start_time;
+        playEndRef.current = currentSentence.end_time;
+      } else {
+        playEndRef.current = null;
+      }
+      v.play().catch(() => {});
+    }
     else v.pause();
   };
 
-  // 点句气泡：跳到该句并连续播放
+  // 点句气泡：跳到该句播放（跟读模式只播这一句，句末自停；其余模式连续播放）
   const jumpToSentence = (idx: number) => {
     const s = sentences[idx];
     if (!s) return;
     goSentence(idx);
     const v = videoRef.current;
     if (!v) return;
-    playEndRef.current = null;
+    playEndRef.current = practiceMode === "shadow" ? s.end_time : null;
     v.currentTime = s.start_time;
     v.play().catch(() => {});
   };
@@ -485,6 +498,11 @@ export function useApp() {
     if (end == null && loopSingleRef.current && !suppressLoopRef.current && currentSentence && t >= currentSentence.end_time) {
       // 连续模式下的单句循环：到当前句末回起点
       v.currentTime = currentSentence.start_time;
+      return;
+    }
+    if (end == null && practiceMode === "shadow" && currentSentence && t >= currentSentence.end_time) {
+      // 跟读模式兜底：即使从连续播放进入，也在当前句末暂停，不自动跳下一句
+      v.pause();
       return;
     }
     // 连续播放：当前句高亮跟随播放头
