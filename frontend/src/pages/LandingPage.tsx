@@ -5,9 +5,9 @@
  * 视觉增强（更酷炫）：极光背景 / 渐变标题 / 声波可视化 / 浮动徽章 / 滚动揭示 / 话题跑马灯 / 流光 CTA。
  */
 import React, { useEffect, useRef } from "react";
-import { AppState } from "./useApp";
-import { Icon, IconName } from "./components/Icon";
-import { ThemeMode } from "./theme-mode";
+import { AppState } from "../useApp";
+import { Icon, IconName } from "../components/Icon";
+import { ThemeMode } from "../theme-mode";
 
 type Props = AppState & { theme: ThemeMode; onToggleTheme: () => void };
 

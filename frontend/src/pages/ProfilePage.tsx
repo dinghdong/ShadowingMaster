@@ -1,0 +1,79 @@
+import { useEffect, useState } from "react";
+import { AppState } from "../useApp";
+import { Icon } from "../components/Icon";
+
+// ─── 个人中心页（学习记录 / 账户）───
+export default function ProfilePage({ app }: { app: AppState }) {
+  const p = app;
+  const [redirected, setRedirected] = useState(false);
+  useEffect(() => {
+    if (!p.user) { p.setPage("login"); setRedirected(true); }
+  }, [p.user]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!p.user || redirected) {
+    return (
+      <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span className="meta">请先登录</span>
+      </div>
+    );
+  }
+
+  const records = (p.progressList || [])
+    .map((r: any) => ({ ...r, video: p.videos.find((v: any) => v.id === r.video_id) }))
+    .filter((r: any) => r.video);
+  const learnedSentences = records.reduce((acc: number, r: any) => acc + (r.last_sentence_index + 1), 0);
+  const wordCount = (p.wordBook || []).length;
+
+  const stat = (label: string, value: number | string) => (
+    <div className="stat-card fade-up">
+      <div className="stat-card__value">{value}</div>
+      <div className="stat-card__label">{label}</div>
+    </div>
+  );
+
+  return (
+    <div className="app">
+      <div className="navbar">
+        <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
+        <div className="navbar__title">个人中心</div>
+      </div>
+
+      <div className="page-pad">
+        <div className="list-card" style={{ marginBottom: "var(--sp-4)" }}>
+          <div className="row">
+            <div className="avatar"><Icon name="user" size={22} /></div>
+            <div>
+              <div className="title-strong" style={{ fontSize: "var(--fs-body)" }}>{p.user.email}</div>
+              <div className="meta">已登录</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-4)" }}>
+          {stat("学习视频", records.length)}
+          {stat("学习句数", learnedSentences)}
+          {stat("生词", wordCount)}
+        </div>
+
+        <div className="section-label" style={{ marginBottom: "var(--sp-2)" }}>学习记录</div>
+        {records.length === 0 ? (
+          <div className="empty">还没有学习记录，去跟读一个视频吧</div>
+        ) : (
+          records.map((r: any) => (
+            <div key={r.video_id} onClick={() => p.openVideo(r.video_id)}
+              className="list-card list-card--click list-card--sm fade-up" style={{ marginBottom: "var(--sp-3)" }}>
+              <div className="row row--between">
+                <div style={{ minWidth: 0 }}>
+                  <div className="title-strong" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.video.title}</div>
+                  <div className="meta" style={{ marginTop: 4 }}>上次学到 第{r.last_sentence_index + 1}句 / 共{r.video.sentence_count}句</div>
+                </div>
+                <div className="link-btn" style={{ flexShrink: 0, marginLeft: "var(--sp-3)" }}>继续 →</div>
+              </div>
+            </div>
+          ))
+        )}
+
+        <button className="btn btn--danger btn--block" style={{ marginTop: "var(--sp-4)" }} onClick={p.handleLogout}>退出登录</button>
+      </div>
+    </div>
+  );
+}
