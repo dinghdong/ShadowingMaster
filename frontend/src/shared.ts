@@ -32,10 +32,11 @@ export function mediaUrl(u: string | null | undefined): string {
 import EXAM_TARGET_JSON from "./data/exam-words.target.json";
 
 /**
- * 考纲标注目标词表（exam-words.target.json：CET4/6 + 考研 + 雅思 + 托福 + SAT + GRE 并集，
- * 17183 词；分级源数据见同目录 exam-words.json）。
- * 设计（2026-08-01 用户拍板）：命中词表的词 = 考纲要求掌握的词 = 句中标橙提示；
- * 初中/高中基础词不标，超出所有考纲的词（如 sentience/AI）也不标。
+ * 考纲标注目标词表（exam-words.target.json：CET4/6+考研+雅思+托福+SAT+GRE 并集，
+ * 再减去初中/高中已学词的差集，13612 词；分级源数据见同目录 exam-words.json）。
+ * 设计（2026-08-01 用户拍板）：命中词表的词 = 考纲要求掌握、且初高中没学过的词 = 句中标橙；
+ * 初高中基础词（think/of/hate/sentence 级）不标，超出所有考纲的词（如 sentience/AI）也不标。
+ * 注意必须是差集而非纯并集：考纲词表是累积制，cet4 词表本身收录基础词。
  * 想调整标注范围（如提到六级及以上），重新生成 target.json 即可。
  */
 const TARGET_WORDS = new Set<string>(EXAM_TARGET_JSON as string[]);
