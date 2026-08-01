@@ -13,10 +13,25 @@ export function VideoCard({
 }) {
   const durationMin = Math.floor(video.duration_seconds / 60);
   const durationSec = String(video.duration_seconds % 60).padStart(2, "0");
+  const total = video.sentence_count || 0;
+  const pct = lastSentenceIndex != null && total > 0
+    ? Math.round(((lastSentenceIndex + 1) / total) * 100)
+    : 0;
+  const done = lastSentenceIndex != null && total > 0 && lastSentenceIndex + 1 >= total;
+
   return (
-    <div onClick={onClick} className="video-card fade-up" style={{ marginBottom: "var(--sp-4)" }}>
+    <div onClick={onClick} className="video-card fade-up" style={{ marginBottom: 0 }}>
       <div className="video-card__thumb">
         {video.thumbnail_url ? <img src={mediaUrl(video.thumbnail_url)} alt="" /> : <Icon name="film" size={28} />}
+        <span className="video-card__duration">{durationMin}:{durationSec}</span>
+        {lastSentenceIndex != null && total > 0 && (
+          <div className="video-card__progress">
+            <div
+              className="video-card__progress-fill"
+              style={{ width: `${pct}%`, background: done ? "var(--success)" : "var(--primary)" }}
+            />
+          </div>
+        )}
       </div>
       <div className="video-card__body">
         <div className="video-card__title">{video.title}</div>
@@ -24,7 +39,9 @@ export function VideoCard({
           <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="clock" size={13} /> {durationMin}:{durationSec}</span>
           <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="lines" size={13} /> {video.sentence_count}句</span>
           {lastSentenceIndex != null && (
-            <span style={{ color: "var(--primary)", fontWeight: "var(--fw-semibold)", whiteSpace: "nowrap" }}>上次学到 第{lastSentenceIndex + 1}句</span>
+            <span style={{ color: done ? "var(--success)" : "var(--primary)", fontWeight: "var(--fw-semibold)", whiteSpace: "nowrap" }}>
+              {done ? "已完成" : `上次学到 第${lastSentenceIndex + 1}句`}
+            </span>
           )}
         </div>
       </div>

@@ -2,9 +2,10 @@ import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
 import { LoginGate } from "../components/LoginGate";
 import { VideoCard } from "../components/VideoCard";
+import { ThemeMode } from "../theme-mode";
 
 // ─── 个人中心页（学习记录 / 账户）───
-export default function ProfilePage({ app }: { app: AppState }) {
+export default function ProfilePage({ app, theme, onToggleTheme }: { app: AppState; theme: ThemeMode; onToggleTheme: () => void }) {
   const p = app;
 
   const records = (p.progressList || [])
@@ -22,37 +23,41 @@ export default function ProfilePage({ app }: { app: AppState }) {
 
   return (
     <div className="app">
-      <div className="navbar">
-        <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
-        <div className="navbar__title">个人中心</div>
-      </div>
-
-      <div className="page-pad">
+      <div className="content-wrap">
         {!p.user ? (
           <LoginGate app={p} title="个人中心" hint="登录后查看你的学习记录与账户" returnPage="profile" />
         ) : (
         <>
-          <div className="list-card" style={{ marginBottom: "var(--sp-4)" }}>
-            <div className="row">
-              <div className="avatar"><Icon name="user" size={22} /></div>
-              <div>
-                <div className="title-strong" style={{ fontSize: "var(--fs-body)" }}>{p.user.email}</div>
-                <div className="meta">已登录</div>
-              </div>
+          <div className="profile-card">
+            <div className="profile-card__avatar"><Icon name="user" size={30} /></div>
+            <div className="profile-card__main">
+              <div className="profile-card__email">{p.user.email}</div>
+              <div className="profile-card__sub">已登录</div>
+            </div>
+            <div className="profile-card__theme">
+              <span className="profile-card__theme-label">深色模式</span>
+              <button
+                className={`toggle ${theme === "dark" ? "toggle--on" : ""}`}
+                onClick={onToggleTheme}
+                aria-label="切换深色模式"
+                aria-pressed={theme === "dark"}
+              >
+                <span className="toggle__knob" />
+              </button>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-4)" }}>
+          <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-5)" }}>
             {stat("学习视频", records.length)}
             {stat("学习句数", learnedSentences)}
             {stat("生词", wordCount)}
           </div>
 
-          <div className="section-label" style={{ marginBottom: "var(--sp-2)" }}>学习记录</div>
+          <div className="section-label" style={{ marginBottom: "var(--sp-3)" }}>学习记录</div>
           {records.length === 0 ? (
             <div className="empty">还没有学习记录，去跟读一个视频吧</div>
           ) : (
-            <div className="list-grid" style={{ padding: 0 }}>
+            <div className="video-grid">
               {records.map((r: any) => (
                 <VideoCard
                   key={r.video_id}
@@ -64,7 +69,7 @@ export default function ProfilePage({ app }: { app: AppState }) {
             </div>
           )}
 
-          <button className="btn btn--danger btn--block" style={{ marginTop: "var(--sp-4)" }} onClick={p.handleLogout}>退出登录</button>
+          <button className="btn btn--danger btn--block" style={{ marginTop: "var(--sp-5)" }} onClick={p.handleLogout}>退出登录</button>
         </>
         )}
       </div>

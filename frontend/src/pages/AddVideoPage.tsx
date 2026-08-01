@@ -2,24 +2,14 @@ import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
 import { LoginGate } from "../components/LoginGate";
 
-// ─── 添加视频页 ───
+// ─── 添加视频页（顶部导航由 DesktopShell 统一提供）───
 export default function AddVideoPage({ app }: { app: AppState }) {
   const p = app;
-  const backBtn = (
-    <button className="icon-btn icon-btn--plain" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
-  );
-  const header = (
-    <div className="navbar">
-      {backBtn}
-      <div className="navbar__title">添加视频</div>
-    </div>
-  );
 
   if (!p.user) {
     return (
       <div className="app">
-        {header}
-        <div className="page-pad">
+        <div className="content-wrap">
           <LoginGate app={p} title="添加视频" hint="登录后即可提交 YouTube 视频自动解析跟读" returnPage="add" />
         </div>
       </div>
@@ -35,8 +25,7 @@ export default function AddVideoPage({ app }: { app: AppState }) {
 
   return (
     <div className="app">
-      {header}
-      <div className="page-pad" style={{ maxWidth: 640, margin: "0 auto" }}>
+      <div className="content-wrap" style={{ maxWidth: 640, margin: "0 auto" }}>
         <div className="card card--pad fade-up">
           <div className="title-strong" style={{ marginBottom: "var(--sp-1)" }}>粘贴 YouTube 链接，自动解析成跟读视频</div>
           <div className="hint" style={{ marginBottom: "var(--sp-4)" }}>

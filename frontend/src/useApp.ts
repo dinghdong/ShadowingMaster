@@ -20,6 +20,7 @@ export type { ShadowScore, ShadowRecording } from "./hooks/useRecording";
 export function useApp() {
   // 轻提示（跨领域，保留在组合层）
   const [toast, setToast] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const showToast = (msg: string) => {
     setToast(msg);
     window.setTimeout(() => setToast(""), 1800);
@@ -37,6 +38,7 @@ export function useApp() {
 
   const auth = useAuth({
     setPage: routing.setPage,
+    loginReturnRef: routing.loginReturnRef,
     refreshWordBook: () => { wordBookRef.current?.refreshWordBook(); },
   });
 
@@ -108,7 +110,7 @@ export function useApp() {
   }, [exercises.subtitleMode, exercises.wordHighlight, exercises.practiceMode, player.rateIdx]);
 
   return {
-    page: routing.page, setPage: routing.setPage,
+    page: routing.page, setPage: routing.setPage, goLogin: routing.goLogin,
     user: auth.user, videos: videos.videos, loading: videos.loading,
     progressList: videos.progressList, progressMap: videos.progressMap,
     currentVideoId: routing.currentVideoId, currentVideo: videos.currentVideo, sentences: videos.sentences, currentIndex: videos.currentIndex, goSentence: videos.goSentence,
@@ -116,11 +118,11 @@ export function useApp() {
     currentSentence: videos.currentSentence,
     subtitleMode: exercises.subtitleMode, setSubtitleMode: exercises.setSubtitleMode,
     isRecording: recording.isRecording, recognizedText: recording.recognizedText, wordMatches: recording.wordMatches,
-    wordBook: wordBook.wordBook, selectedWord: wordBook.selectedWord, wordDetail: wordBook.wordDetail,
+    wordBook: wordBook.wordBook, selectedWord: wordBook.selectedWord, wordDetail: wordBook.wordDetail, wordPopupOrigin: wordBook.wordPopupOrigin,
     error: auth.error,
     parseInput: videos.parseInput, setParseInput: videos.setParseInput, parseJob: videos.parseJob, parseError: videos.parseError, submitVideoUrl: videos.submitVideoUrl,
     openVideo: routing.openVideo, openWordOrigin: wordBook.openWordOrigin, handleLogin: auth.handleLogin, handleRegister: auth.handleRegister, handleLogout: auth.handleLogout,
-    handleWordClick: wordBook.handleWordClick, addToWordBook: wordBook.addToWordBook, closeWord: wordBook.closeWord, speakWord: wordBook.speakWord,
+    handleWordClick: wordBook.handleWordClick, addToWordBook: wordBook.addToWordBook, closeWord: wordBook.closeWord, speakWord: wordBook.speakWord, openWordDetail: wordBook.openWordDetail,
     videoRef: player.videoRef, playEndRef: player.playEndRef, loopSingleRef: player.loopSingleRef, suppressLoopRef: player.suppressLoopRef,
     loopSingle: player.loopSingle, setLoopSingle: player.setLoopSingle, rate: player.rate, cycleRate: player.cycleRate, setRate: player.setRate, RATES: player.RATES, playFrom: player.playFrom, playSentenceAt: player.playSentenceAt,
     isPlaying: player.isPlaying, setIsPlaying: player.setIsPlaying, togglePlay: player.togglePlay, jumpToSentence: player.jumpToSentence, onVideoLoaded: player.onVideoLoaded, handleTimeUpdate: player.handleTimeUpdate,
@@ -130,6 +132,7 @@ export function useApp() {
     clozeAnswers: exercises.clozeAnswers, setClozeAnswer: exercises.setClozeAnswer, clozeChecked: exercises.clozeChecked, checkCloze: exercises.checkCloze, redoCloze: exercises.redoCloze,
     wordHighlight: exercises.wordHighlight, setWordHighlight: exercises.setWordHighlight,
     favorites: wordBook.favorites, notes: wordBook.notes, openNoteId: wordBook.openNoteId, toast,
+    searchQuery, setSearchQuery,
     toggleFav: wordBook.toggleFav, saveNoteFor: wordBook.saveNoteFor, copySentence: wordBook.copySentence, openNote: wordBook.openNote, closeNote: wordBook.closeNote, showToast,
     recordings: recording.recordings, recordingId: recording.recordingId, evalOpenId: recording.evalOpenId,
     startRecord: recording.startRecord, stopRecord: recording.stopRecord, playRecord: recording.playRecord, openEval: recording.openEval, closeEval: recording.closeEval,
