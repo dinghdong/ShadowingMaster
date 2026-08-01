@@ -44,12 +44,17 @@ const TARGET_WORDS = new Set<string>(EXAM_TARGET_JSON as string[]);
 /** 轻量词形归一：复数/过去式/进行时/所有格还原后查目标词表 */
 function inTargetWords(w: string): boolean {
   if (TARGET_WORDS.has(w)) return true;
-  for (const n of [1, 2, 3]) { // s / es / ies 粗处理
-    const stem = w.slice(0, w.length - n);
-    if (stem.length >= 3 && TARGET_WORDS.has(stem)) return true;
+  // 所有格 's
+  if (w.endsWith("'s") && TARGET_WORDS.has(w.slice(0, -2))) return true;
+  // 复数 / 第三人称单数 -s（只去掉一个 s，避免 from→fro、right→rig 等误命中）
+  if (w.endsWith("s") && !w.endsWith("ss")) {
+    const stem = w.slice(0, -1);
+    if (stem.length >= 2 && TARGET_WORDS.has(stem)) return true;
   }
+  // -ies / -ied → -y
   if (w.endsWith("ies") && TARGET_WORDS.has(w.slice(0, -3) + "y")) return true;
   if (w.endsWith("ied") && TARGET_WORDS.has(w.slice(0, -3) + "y")) return true;
+  // -ed / -ing
   for (const suf of ["ed", "ing"]) {
     if (w.endsWith(suf)) {
       const b = w.slice(0, -suf.length);
@@ -58,7 +63,6 @@ function inTargetWords(w: string): boolean {
       if (TARGET_WORDS.has(b + "e")) return true; // 去 e 变形
     }
   }
-  if (w.endsWith("'s") && TARGET_WORDS.has(w.slice(0, -2))) return true;
   return false;
 }
 
