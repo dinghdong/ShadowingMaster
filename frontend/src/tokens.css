@@ -166,6 +166,56 @@ button:disabled { cursor: not-allowed; }
   100% { background-position: 160px 0; }
 }
 
+/* —— Landing 酷炫动效 —— */
+/* 极光背景漂浮 */
+@keyframes sm-aurora-a {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(6%, -4%, 0) scale(1.12); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes sm-aurora-b {
+  0%   { transform: translate3d(0, 0, 0) scale(1.05); }
+  50%  { transform: translate3d(-7%, 5%, 0) scale(0.92); }
+  100% { transform: translate3d(0, 0, 0) scale(1.05); }
+}
+/* 声波条跳动（配合每条不同 delay/duration） */
+@keyframes sm-wave {
+  0%, 100% { transform: scaleY(0.28); }
+  50%      { transform: scaleY(1); }
+}
+/* 跑马灯横向滚动 */
+@keyframes sm-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+/* 浮动徽章上下漂 */
+@keyframes sm-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+/* REC 录音脉冲 */
+@keyframes sm-rec {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.82); }
+}
+/* 光环脉冲（发光扩散） */
+@keyframes sm-halo {
+  0%   { opacity: 0.55; transform: scale(0.96); }
+  70%  { opacity: 0; transform: scale(1.25); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+/* 渐变平移（标题/CTA 流光） */
+@keyframes sm-gradient-pan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+/* CTA 高光扫过 */
+@keyframes sm-sheen {
+  0%   { transform: translateX(-120%) skewX(-18deg); }
+  60%, 100% { transform: translateX(320%) skewX(-18deg); }
+}
+
 /* 尊重「减少动态效果」系统偏好 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

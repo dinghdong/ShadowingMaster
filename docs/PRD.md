@@ -286,6 +286,10 @@ Slice 0（交互原型）已完成：三变体对比 → 选定 A · 暖橙卡�
 | 4 | 生词标注真词表 | 5000 常用词 JSON 替换前端写死 stub | 已知生词被高亮、常用词不高亮 |
 | 5 | 播放位置记忆 | 重进跟读页恢复到上次句位（切句静默上报 last_index，无进度 UI；2026-07-30 用户重定义，砍"学习进度"叙事） | E2E：切句后重进落在原句位 |
 | 6 | 生词本跳回原句 | 词条点击跳回对应视频/句子（后端已存 video_id/sentence_id） | E2E：点击词条落到原句 |
+| 7 | 用户提交 YouTube 链接自动解析 | 已登录用户在列表页粘贴链接 → 后端异步任务跑 下载+字幕解析+中英入库（复用 fetch_video.fetch）→ 完成后视频进入全局列表可跟读 | E2E：粘贴链接→轮询→视频出现在列表并可跟读 |
+
+> Slice 7 说明（2026-07-31 新增）：把原"管理员手动跑 fetch_video.py CLI"泛化为用户可触发的后端接口 `POST /api/videos/parse`（建 `parse_jobs` 任务，开线程跑，前端每 2s 轮询 `GET /api/videos/jobs/{id}`）。异步任务模式，避免下载超时；去重（同 youtube_id 已存在直接返回）；失败原因落库可查。
+> **已知限制**：yt-dlp 在服务器 IP / 无浏览器环境下会被 YouTube 拦截（"Sign in to confirm you're not a bot"）。生产部署需传入浏览器 cookie（`--cookies-from-browser` 或 cookies 文件），当前 fetch_video 未默认开启；若用户普遍遇到，列为候选增强。
 
 ### 候选清单（计划外，暂不做）
 - 发音打分 / AI 语音评测（PRD 明确不做）

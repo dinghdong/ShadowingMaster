@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -15,6 +16,16 @@ cursor.executemany(
         ("dQw4w9WgXcQ", "How to Learn English Faster", 154, "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", 12),
         ("abc123def", "Daily English Conversation #1", 105, "https://i.ytimg.com/vi/abc123def/hqdefault.jpg", 8),
         ("xyz789abc", "Job Interview Tips", 192, "https://i.ytimg.com/vi/xyz789abc/hqdefault.jpg", 15),
+    ],
+)
+
+# 给示例视频补简介与标签，便于预览新字段
+cursor.executemany(
+    "UPDATE videos SET description=?, tags=? WHERE youtube_id=?",
+    [
+        ("本视频用影子跟读法带你快速提升英语流利度：每天坚持 15 分钟，跟着原声逐句模仿，逐步建立语感与发音肌肉记忆。", json.dumps(["英语口语", "影子跟读", "学习方法"], ensure_ascii=False), "dQw4w9WgXcQ"),
+        ("日常英语口语实战：覆盖打招呼、点餐、问路等高频场景，跟着逐句跟读，轻松开口说。", json.dumps(["日常英语", "口语练习", "场景对话"], ensure_ascii=False), "abc123def"),
+        ("面试英语全攻略：自我介绍、常见问题与得体回答模板，跟读打磨你的英文面试表达。", json.dumps(["职场英语", "面试", "自我介绍"], ensure_ascii=False), "xyz789abc"),
     ],
 )
 

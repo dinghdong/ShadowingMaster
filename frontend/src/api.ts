@@ -54,16 +54,42 @@ export function fetchVideo(id: number) {
   return api(`/api/videos/${id}`);
 }
 
+/** 用户提交 YouTube 链接，后端异步解析（返回 job_id 或直接返回已存在的 video_id） */
+export function submitVideo(url: string) {
+  return api("/api/videos/parse", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}
+
+/** 轮询解析任务状态 */
+export function getParseJob(jobId: number) {
+  return api(`/api/videos/jobs/${jobId}`);
+}
+
 export function getWordBook() {
   return api("/api/wordbook");
 }
 
-export function addWord(word: string, definition?: string, videoId?: number, sentenceId?: number) {
+export function addWord(
+  word: string,
+  opts?: {
+    definition?: string;
+    definitionZh?: string;
+    example?: string;
+    exampleZh?: string;
+    videoId?: number;
+    sentenceId?: number;
+  }
+) {
   // 后端契约：标量参数走 query string（JSON body 会 422）
   const q = new URLSearchParams({ word });
-  if (definition) q.set("definition", definition);
-  if (videoId) q.set("video_id", String(videoId));
-  if (sentenceId) q.set("sentence_id", String(sentenceId));
+  if (opts?.definition) q.set("definition", opts.definition);
+  if (opts?.definitionZh) q.set("definition_zh", opts.definitionZh);
+  if (opts?.example) q.set("example", opts.example);
+  if (opts?.exampleZh) q.set("example_zh", opts.exampleZh);
+  if (opts?.videoId) q.set("video_id", String(opts.videoId));
+  if (opts?.sentenceId) q.set("sentence_id", String(opts.sentenceId));
   return api(`/api/wordbook?${q.toString()}`, { method: "POST" });
 }
 
@@ -74,4 +100,22 @@ export function getProgress() {
 /** 上报播放位置（practiced 字段后端必填，位置记忆不用它，恒传 0） */
 export function saveProgress(videoId: number, lastIndex: number) {
   return api(`/api/progress/${videoId}?last_index=${lastIndex}&practiced=0`, { method: "POST" });
+}
+
+/** 批量拉取当前用户在某视频内各句的收藏状态与笔记内容 */
+export function getAnnotations(videoId: number) {
+  return api(`/api/videos/${videoId}/annotations`);
+}
+
+/** 切换某句收藏状态，返回最新 is_favorite */
+export function toggleFavorite(sentenceId: number) {
+  return api(`/api/sentences/${sentenceId}/favorite`, { method: "POST" });
+}
+
+/** 保存某句笔记（空内容视为删除），返回最新 content */
+export function saveNote(sentenceId: number, content: string) {
+  return api(`/api/sentences/${sentenceId}/note`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
 }

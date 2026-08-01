@@ -3,10 +3,12 @@
 Slice 2 会把它泛化成完整的爬取 CLI。
 """
 import re
+import json
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 BACKEND = Path(__file__).parent
 MEDIA = BACKEND / "media"
@@ -110,23 +112,37 @@ def merge_sentences(chunks, max_gap=3.0):
     return [(st, en + 0.4, t[0].upper() + t[1:]) for st, en, t in out]  # 句末留 0.4s 尾巴，避免最后一个词被截
 
 
-def probe_duration(mp4: Path) -> int:
-    out = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
-        capture_output=True, text=True, check=True,
-    )
-    return int(float(out.stdout.strip()))
+def probe_duration(mp4: Path) -> Optional[int]:
+    # ffmpeg 缺失时返回 None，由调用方回退到 yt-dlp 元信息里的 duration
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp4)],
+            capture_output=True, text=True, check=True,
+        )
+        return int(float(out.stdout.strip()))
+    except Exception:
+        return None
 
 
-def ingest(youtube_id: str, title: str) -> int:
-    """把 media/ 下已下载的 <youtube_id>.en.vtt/.mp4 解析入库，返回 video_id。"""
+def ingest(youtube_id: str, title: str, duration: Optional[int] = None, description: Optional[str] = None, tags: Optional[list] = None) -> int:
+    """把 media/ 下已下载的 <youtube_id>.en.vtt/.mp4 解析入库，返回 video_id。
+    duration 可选：ffmpeg 缺失时由调用方传入 yt-dlp 元信息里的时长。
+    description / tags 可选：来自 yt-dlp 元信息，tags 以 JSON 字符串入库。
+    """
     vtt = MEDIA / f"{youtube_id}.en.vtt"
     mp4 = MEDIA / f"{youtube_id}.mp4"
-    jpg = MEDIA / f"{youtube_id}.jpg"
     assert vtt.exists() and mp4.exists(), f"缺少 {vtt} 或 {mp4}，先用 yt-dlp 下载"
 
     sents = merge_sentences(parse_vtt(vtt))
-    duration = probe_duration(mp4)
+    if duration is None:
+        duration = probe_duration(mp4) or 0
+
+    # 封面：ffmpeg 缺失时 yt-dlp 可能只产出 webp/png，按扩展名依次查找
+    thumb_url = None
+    for ext in ("jpg", "webp", "png"):
+        if (MEDIA / f"{youtube_id}.{ext}").exists():
+            thumb_url = f"/media/{youtube_id}.{ext}"
+            break
 
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
@@ -135,10 +151,8 @@ def ingest(youtube_id: str, title: str) -> int:
         conn.execute("DELETE FROM sentences WHERE video_id = ?", (old["id"],))
         conn.execute("DELETE FROM videos WHERE id = ?", (old["id"],))
     cur = conn.execute(
-        "INSERT INTO videos (youtube_id, title, duration_seconds, thumbnail_url, video_path, sentence_count) VALUES (?,?,?,?,?,?)",
-        (youtube_id, title, duration,
-         f"/media/{youtube_id}.jpg" if jpg.exists() else None,
-         f"/media/{youtube_id}.mp4", len(sents)),
+        "INSERT INTO videos (youtube_id, title, duration_seconds, thumbnail_url, video_path, sentence_count, description, tags) VALUES (?,?,?,?,?,?,?,?)",
+        (youtube_id, title, duration, thumb_url, f"/media/{youtube_id}.mp4", len(sents), description, json.dumps(tags or [], ensure_ascii=False)),
     )
     vid = cur.lastrowid
     conn.executemany(
