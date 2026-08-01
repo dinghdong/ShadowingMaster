@@ -5,6 +5,22 @@ import { Icon, IconName } from "./components/Icon";
 import { getStoredTheme, toggleTheme, ThemeMode } from "./theme-mode";
 import LandingPage from "./LandingPage";
 
+// 断点：< 900px 视为手机端（与 components.css 的 @media (max-width: 899px) 对齐）
+function useIsMobile() {
+  const query = "(max-width: 899px)";
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", onChange);
+    setIsMobile(mql.matches);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
+
 // 评分配色 / 文案（跟读评价）—— 用语义 CSS 变量，随深浅主题自适应
 const scoreVar = (v: number) =>
   v >= 80 ? "var(--success)" : v >= 60 ? "var(--warning)" : "var(--danger)";
@@ -364,6 +380,29 @@ function ProgChips({ p, s }: { p: AppState; s: Sentence }) {
   return <div className="tag-row">{chips}</div>;
 }
 
+// ─── 模式分段控件（原文 / 跟读 / 听写 / 挖空 + 字幕开关）───
+function ModeBar({ p }: { p: AppState }) {
+  return (
+    <div className="practice__modebar" onClick={(e) => e.stopPropagation()}>
+      {(["view", "shadow", "dictation", "cloze"] as const).map((m) => (
+        <button key={m} onClick={() => p.setPracticeMode(m)}
+          className={`chip ${p.practiceMode === m ? "chip--active" : ""}`}>
+          {m === "view" ? "原文" : m === "shadow" ? "跟读" : m === "dictation" ? "听写" : "挖空"}
+        </button>
+      ))}
+      {p.practiceMode === "view" && p.currentSentence && (
+        <button
+          className="practice__subtitle-toggle"
+          onClick={() => p.revealIntensive()}
+        >
+          <Icon name={p.subtitleHidden ? "eye" : "eyeOff"} size={14} />
+          {p.subtitleHidden ? "显示字幕" : "隐藏字幕"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── 右侧全句滚动列表行 ───
 function SentenceRow({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
   const isCurrent = idx === p.currentIndex;
@@ -653,6 +692,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
   const onToggleTheme = () => setTheme(toggleTheme());
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (p.videoRef.current) p.videoRef.current.playbackRate = p.rate;
@@ -837,34 +877,29 @@ export default function App() {
 
         <div className="practice__divider" />
 
-        <div className="practice__modebar">
-          {(["view", "shadow", "dictation", "cloze"] as const).map((m) => (
-            <button key={m} onClick={() => p.setPracticeMode(m)}
-              className={`chip ${p.practiceMode === m ? "chip--active" : ""}`}>
-              {m === "view" ? "原文" : m === "shadow" ? "跟读" : m === "dictation" ? "听写" : "挖空"}
-            </button>
-          ))}
-          {p.practiceMode === "view" && p.currentSentence && (
-            <button
-              className="practice__subtitle-toggle"
-              onClick={() => p.revealIntensive()}
-            >
-              <Icon name={p.subtitleHidden ? "eye" : "eyeOff"} size={14} />
-              {p.subtitleHidden ? "显示字幕" : "隐藏字幕"}
-            </button>
-          )}
-        </div>
-
-        {p.currentSentence && (
-          <SentenceCard p={p} s={p.currentSentence} idx={p.currentIndex} />
+        {/* PC 端：模式控件 + 当前句练习台常驻左栏；手机端下移到列表中的当前句 */}
+        {!isMobile && (
+          <>
+            <ModeBar p={p} />
+            {p.currentSentence && (
+              <SentenceCard p={p} s={p.currentSentence} idx={p.currentIndex} />
+            )}
+          </>
         )}
       </div>
       </div>
 
       <div className="page-pad practice__right">
-        {p.sentences.map((s, idx) => (
-          <SentenceRow key={s.id} p={p} s={s} idx={idx} />
-        ))}
+        {p.sentences.map((s, idx) =>
+          isMobile && idx === p.currentIndex ? (
+            <div key={s.id} id={`sent-${idx}`} className="practice__expanded">
+              <ModeBar p={p} />
+              <SentenceCard p={p} s={s} idx={idx} />
+            </div>
+          ) : (
+            <SentenceRow key={s.id} p={p} s={s} idx={idx} />
+          )
+        )}
       </div>
 
       {p.resumeIndex !== null && !p.resumeDismissed && p.currentIndex === p.resumeIndex && (

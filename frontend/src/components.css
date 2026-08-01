@@ -683,6 +683,30 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 
   /* 句子列表顶部留白，避免首句被吸顶视频遮挡 */
   .practice__right { padding-top: var(--sp-3); }
+
+  /* ── 手机端：列表中的当前句就地展开为练习台 ──
+     模式控件（原文/跟读/听写/挖空 + 字幕开关）位于展开面板顶部，
+     不再在视频下方常驻，避免当前句在页面上出现两次 */
+  .practice__expanded {
+    background: var(--surface-2);
+    border: 2px solid var(--primary);
+    border-radius: var(--r-lg);
+    padding: var(--sp-3);
+    box-shadow: var(--shadow-sm);
+  }
+  .practice__expanded .practice__modebar {
+    padding-top: 0;
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+  }
+  /* 展开面板内的当前句卡片去掉自身边框/底色，与外层容器合为一体 */
+  .practice__expanded .practice__panel {
+    margin-top: var(--sp-3);
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
 }
 
 /* 移动端默认隐藏桌面侧边栏，由页面自己的顶栏接管导航 */

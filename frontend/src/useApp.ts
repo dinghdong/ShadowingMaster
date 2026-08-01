@@ -284,7 +284,16 @@ export function useApp() {
     const bar = document.querySelector(".player-bar");
     const leftCol = document.querySelector(".practice__left");
     const barOnTop = !leftCol || getComputedStyle(leftCol).position !== "sticky";
-    const offset = barOnTop && bar ? bar.getBoundingClientRect().height + 12 : 12;
+    // 移动端顶部遮挡 = 吸顶顶栏 + 吸顶视频播放器（两者都是 sticky，会盖住句子）
+    let occluded = 0;
+    if (barOnTop && bar) {
+      occluded += bar.getBoundingClientRect().height;
+      const frame = document.querySelector(".player-frame");
+      if (frame && getComputedStyle(frame).position === "sticky") {
+        occluded += frame.getBoundingClientRect().height;
+      }
+    }
+    const offset = occluded ? occluded + 12 : 12;
     const rect = el.getBoundingClientRect();
     const elTop = rect.top + window.scrollY;
     const elHeight = rect.height;
