@@ -4,6 +4,8 @@ import { Page } from "../shared";
 
 export interface AuthDeps {
   setPage: (pg: Page) => void;
+  /** 未登录门禁回跳意图：记录用户原本想访问的受保护页，登录成功后回跳 */
+  loginReturnRef: React.MutableRefObject<Page | null>;
   /** 登录/注册成功后刷新生词本（由 useApp 延迟绑定到 useWordBook） */
   refreshWordBook: () => void;
 }
@@ -30,15 +32,22 @@ export function useAuth(deps: AuthDeps) {
     return msg;
   };
 
+  // 登录/注册成功后跳回门禁来源页；无来源则回列表
+  const afterAuth = () => {
+    const target = deps.loginReturnRef.current ?? "list";
+    deps.loginReturnRef.current = null;
+    deps.setPage(target);
+  };
+
   const handleLogin = async (email: string, password: string) => {
     setError("");
-    try { await login(email, password); setUser(await getMe()); deps.refreshWordBook(); deps.setPage("list"); }
+    try { await login(email, password); setUser(await getMe()); deps.refreshWordBook(); afterAuth(); }
     catch (e: any) { setError(localizeError(e.message) || "登录失败"); }
   };
 
   const handleRegister = async (email: string, password: string) => {
     setError("");
-    try { await register(email, password); await login(email, password); setUser(await getMe()); deps.refreshWordBook(); deps.setPage("list"); }
+    try { await register(email, password); await login(email, password); setUser(await getMe()); deps.refreshWordBook(); afterAuth(); }
     catch (e: any) { setError(localizeError(e.message) || "注册失败"); }
   };
 

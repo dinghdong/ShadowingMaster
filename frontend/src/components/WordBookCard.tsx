@@ -8,17 +8,15 @@ export function WordBookCard({ w, p }: { w: any; p: AppState }) {
   return (
     <div
       key={w.id}
-      onClick={() => p.openWordOrigin(w)}
-      className={`list-card list-card--sm fade-up ${hasSource ? "list-card--click" : ""}`}
+      onClick={() => p.openWordDetail(w)}
+      className="list-card list-card--sm fade-up list-card--click"
       style={{ marginBottom: "var(--sp-3)" }}
     >
       <div className="row row--between" style={{ marginBottom: "var(--sp-1)" }}>
         <div className="title-strong" style={{ fontSize: "var(--fs-title)" }}>{w.word}</div>
-        {hasSource && (
-          <div className="link-btn" style={{ color: "var(--primary)", flexShrink: 0, marginLeft: "var(--sp-2)" }}>
-            <Icon name="reply" size={13} /> 回到原句
-          </div>
-        )}
+        <div className="link-btn" style={{ color: "var(--primary)", flexShrink: 0, marginLeft: "var(--sp-2)" }}>
+          查看详情
+        </div>
       </div>
       <div className="wb-def">{zh || "暂无释义"}</div>
       {w.example && (

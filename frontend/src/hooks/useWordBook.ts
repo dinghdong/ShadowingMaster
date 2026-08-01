@@ -26,6 +26,8 @@ export function useWordBook(deps: WordBookDeps) {
   const [wordBook, setWordBook] = useState<any[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [wordDetail, setWordDetail] = useState<WordDetail | null>(null);
+  // 生词本弹窗的来源（点击生词本条目时记录），用于在弹窗中显示"回到原句"
+  const [wordPopupOrigin, setWordPopupOrigin] = useState<{ videoId: number; sentenceId: number; definition?: string; definitionZh?: string } | null>(null);
   // 句子标注：收藏（sentence id 集合）/ 笔记（sentence id -> 内容）/ 当前打开的笔记编辑器
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -133,7 +135,7 @@ export function useWordBook(deps: WordBookDeps) {
     }
   };
 
-  const closeWord = () => { setSelectedWord(null); setWordDetail(null); };
+  const closeWord = () => { setSelectedWord(null); setWordDetail(null); setWordPopupOrigin(null); };
 
   const addToWordBook = async () => {
     if (!selectedWord) return;
@@ -202,9 +204,20 @@ export function useWordBook(deps: WordBookDeps) {
     openVideo(w.video_id);
   };
 
+  // 生词本条目点击 → 打开释义弹窗（而非直接跳转），弹窗内提供"回到原句"
+  const openWordDetail = (w: any) => {
+    setWordPopupOrigin({
+      videoId: w.video_id,
+      sentenceId: w.sentence_id,
+      definition: w.definition || undefined,
+      definitionZh: w.definition_zh || undefined,
+    });
+    handleWordClick(w.word);
+  };
+
   return {
     wordBook, refreshWordBook,
-    selectedWord, wordDetail, handleWordClick, addToWordBook, closeWord, speakWord, openWordOrigin,
+    selectedWord, wordDetail, wordPopupOrigin, handleWordClick, addToWordBook, closeWord, speakWord, openWordOrigin, openWordDetail,
     favorites, setFavorites, notes, setNotes, openNoteId,
     toggleFav, saveNoteFor, copySentence, openNote, closeNote,
   };

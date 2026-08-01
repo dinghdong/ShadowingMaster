@@ -12,7 +12,7 @@ export function ShadowActions({ p, s, idx }: { p: AppState; s: Sentence; idx: nu
         aria-label={`record-${idx}`}
         onClick={() => (isRec ? p.stopRecord() : p.startRecord(s.id))}
         title={isRec ? "停止录音" : "录音"}
-        className="action-btn"
+        className={`action-btn ${isRec ? "action-btn--recording" : ""}`}
         style={isRec ? { background: "var(--danger)", borderColor: "var(--danger)", color: "#fff" } : undefined}
       >
         <Icon name={isRec ? "stop" : "mic"} size={15} />

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { AppState } from "../useApp";
-import { mediaUrl, posLabel } from "../shared";
+import { mediaUrl } from "../shared";
 import { Icon } from "../components/Icon";
 import { ModeBar } from "../features/practice/ModeBar";
 import { SentenceCard } from "../features/practice/SentenceCard";
 import { SentenceRow } from "../features/practice/SentenceRow";
+import { WordPopup } from "../components/WordPopup";
 
 // 评分配色 / 文案（跟读评价）—— 用语义 CSS 变量，随深浅主题自适应
 const scoreVar = (v: number) =>
@@ -217,44 +218,7 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
         );
       })()}
 
-      {p.selectedWord && (
-        <div className="modal-backdrop" onClick={p.closeWord}>
-          <div className="modal modal--md" onClick={(e) => e.stopPropagation()}>
-            <div className="word-head">
-              <div className="word-head__text">{p.selectedWord}</div>
-              {p.wordDetail?.phonetic && <div className="word-head__phon">{p.wordDetail.phonetic}</div>}
-              <button aria-label="speak-word" onClick={() => p.speakWord(p.selectedWord!)} className="icon-btn" style={{ marginLeft: "auto" }}><Icon name="volume" size={16} /></button>
-            </div>
-
-            <div className="scroll-y" style={{ overflowY: "auto", marginBottom: "var(--sp-4)" }}>
-              {!p.wordDetail && <div className="hint">加载中…</div>}
-              {p.wordDetail?.notFound && <div className="hint">未找到在线释义，仍可加入生词本自行备注。</div>}
-              {p.wordDetail?.meanings?.map((m, i) => (
-                <div key={i} style={{ marginBottom: "var(--sp-3)" }}>
-                  <div className="pos-tag">{posLabel(m.partOfSpeech)}</div>
-                  {/* 中文释义为主，英文释义作对照（翻译缺失时回退） */}
-                  <div className="meaning">{m.definitionZh || m.definition}</div>
-                  {m.definitionZh && m.definition && m.definitionZh !== m.definition && (
-                    <div className="meaning-en">{m.definition}</div>
-                  )}
-                  {m.example && (
-                    <div className="example">
-                      “{m.example}”
-                      <button aria-label={`speak-example-${i}`} onClick={() => p.speakWord(m.example!)} className="example__speak"><Icon name="volume" size={12} /></button>
-                    </div>
-                  )}
-                  {m.exampleZh && (
-                    <div className="example-zh">“{m.exampleZh}”</div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {p.user && <button onClick={p.addToWordBook} className="btn btn--primary btn--block" style={{ marginBottom: 10 }}><Icon name="plus" size={16} /> 加入生词本</button>}
-            <button onClick={p.closeWord} className="btn btn--ghost btn--block">关闭</button>
-          </div>
-        </div>
-      )}
+      {p.selectedWord && <WordPopup p={p} />}
     </div>
   );
 }

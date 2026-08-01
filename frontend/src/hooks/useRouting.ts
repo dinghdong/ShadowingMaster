@@ -56,5 +56,14 @@ export function useRouting() {
   // 位置记忆 / 生词跳原句：生词跳转优先于进度恢复（由 useWordBook 写入、useVideos 消费）
   const jumpTargetRef = useRef<JumpTarget | null>(null);
 
-  return { page, currentVideoId, setPage, openVideo, jumpTargetRef };
+  // 未登录门禁：从受保护页点击登录时记录目标页，登录成功后回跳
+  const loginReturnRef = useRef<Page | null>(null);
+  const goLogin = (returnTo: Page) => {
+    loginReturnRef.current = returnTo;
+    const path = "/login";
+    window.history.pushState({}, "", path);
+    applyPath(path);
+  };
+
+  return { page, currentVideoId, setPage, openVideo, jumpTargetRef, goLogin, loginReturnRef };
 }
