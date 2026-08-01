@@ -430,7 +430,7 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
   const tokens = tokenize(s.english_text);
   const isHidden = p.practiceMode === "view" && p.subtitleHidden;
 
-  const highlightCurrent = p.wordHighlight && isCurrent && ((p.practiceMode === "view" && !isHidden) || p.practiceMode === "shadow");
+  const highlightCurrent = p.wordHighlight && isCurrent && (p.practiceMode === "view" || p.practiceMode === "shadow");
   const wordCount = tokens.filter((t) => !t.space).length;
   let activeWord = -1;
   if (highlightCurrent) {
@@ -495,7 +495,9 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
   let body: React.ReactNode = null;
 
   if (p.practiceMode === "view") {
-    body = isHidden ? (
+    // 精听（字幕隐藏）且未开启逐词高亮 → 保持隐藏，逼用户靠听力；
+    // 精听 + 已开启逐词高亮 → 显示字幕并启用卡拉OK逐词点亮（见 highlightCurrent）。
+    body = isHidden && !p.wordHighlight ? (
       <div style={{ position: "relative", borderRadius: "var(--r-md)", minHeight: 80 }}>
         <div style={{ filter: "blur(6px)", userSelect: "none", pointerEvents: "none" }}>{fullSubtitle}</div>
         <div
