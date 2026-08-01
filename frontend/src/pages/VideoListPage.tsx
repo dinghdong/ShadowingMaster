@@ -1,6 +1,6 @@
 import { AppState } from "../useApp";
-import { mediaUrl } from "../shared";
 import { Icon } from "../components/Icon";
+import { VideoCard } from "../components/VideoCard";
 
 // ─── 视频列表页 ───
 export default function VideoListPage({ app }: { app: AppState }) {
@@ -30,21 +30,12 @@ export default function VideoListPage({ app }: { app: AppState }) {
 
       <div className="page-pad list-grid">
         {p.videos.map((v) => (
-          <div key={v.id} onClick={() => p.openVideo(v.id)} className="video-card fade-up" style={{ marginBottom: "var(--sp-4)" }}>
-            <div className="video-card__thumb">
-              {v.thumbnail_url ? <img src={mediaUrl(v.thumbnail_url)} alt="" /> : <Icon name="film" size={28} />}
-            </div>
-            <div className="video-card__body">
-              <div className="video-card__title">{v.title}</div>
-              <div className="row" style={{ gap: "var(--sp-3)", fontSize: "var(--fs-meta)", color: "var(--text-2)", flexWrap: "nowrap" }}>
-                <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="clock" size={13} /> {Math.floor(v.duration_seconds / 60)}:{String(v.duration_seconds % 60).padStart(2, "0")}</span>
-                <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="lines" size={13} /> {v.sentence_count}句</span>
-                {p.progressMap && p.progressMap[v.id] != null && (
-                  <span style={{ color: "var(--primary)", fontWeight: "var(--fw-semibold)", whiteSpace: "nowrap" }}>上次学到 第{p.progressMap[v.id] + 1}句</span>
-                )}
-              </div>
-            </div>
-          </div>
+          <VideoCard
+            key={v.id}
+            video={v}
+            lastSentenceIndex={p.progressMap && p.progressMap[v.id] != null ? p.progressMap[v.id] : null}
+            onClick={() => p.openVideo(v.id)}
+          />
         ))}
       </div>
     </div>

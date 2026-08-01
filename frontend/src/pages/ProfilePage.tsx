@@ -1,6 +1,7 @@
 import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
 import { LoginGate } from "../components/LoginGate";
+import { VideoCard } from "../components/VideoCard";
 
 // ─── 个人中心页（学习记录 / 账户）───
 export default function ProfilePage({ app }: { app: AppState }) {
@@ -51,18 +52,16 @@ export default function ProfilePage({ app }: { app: AppState }) {
           {records.length === 0 ? (
             <div className="empty">还没有学习记录，去跟读一个视频吧</div>
           ) : (
-            records.map((r: any) => (
-              <div key={r.video_id} onClick={() => p.openVideo(r.video_id)}
-                className="list-card list-card--click list-card--sm fade-up" style={{ marginBottom: "var(--sp-3)" }}>
-                <div className="row row--between">
-                  <div style={{ minWidth: 0 }}>
-                    <div className="title-strong" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.video.title}</div>
-                    <div className="meta" style={{ marginTop: 4 }}>上次学到 第{r.last_sentence_index + 1}句 / 共{r.video.sentence_count}句</div>
-                  </div>
-                  <div className="link-btn" style={{ flexShrink: 0, marginLeft: "var(--sp-3)" }}>继续 →</div>
-                </div>
-              </div>
-            ))
+            <div className="list-grid" style={{ padding: 0 }}>
+              {records.map((r: any) => (
+                <VideoCard
+                  key={r.video_id}
+                  video={r.video}
+                  lastSentenceIndex={r.last_sentence_index}
+                  onClick={() => p.openVideo(r.video_id)}
+                />
+              ))}
+            </div>
           )}
 
           <button className="btn btn--danger btn--block" style={{ marginTop: "var(--sp-4)" }} onClick={p.handleLogout}>退出登录</button>
