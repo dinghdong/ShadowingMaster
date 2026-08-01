@@ -62,11 +62,12 @@ function isCommon(w: string): boolean {
 
 /**
  * 判断单词是否「重点词」：落在考纲已知基线（KNOWN_WORDS，见上）之外的即为重点词。
- * clean 后长度 > 0 才判定，避免标点/空串误判；词形还原逻辑见 isCommon。
+ * clean 后长度 > 1 才判定：空串/标点不判；单字母（a/I）是最高频虚词，
+ * 且词表按 len>=2 构建不含单字母，直接排除避免误标红。词形还原逻辑见 isCommon。
  */
 export function isHardWord(word: string): boolean {
   const clean = word.toLowerCase().replace(/[^a-z']/g, "");
-  return clean.length > 0 && !isCommon(clean);
+  return clean.length > 1 && !isCommon(clean);
 }
 
 export function tokenize(text: string) {
