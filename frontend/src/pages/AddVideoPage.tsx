@@ -1,5 +1,6 @@
 import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
+import { LoginGate } from "../components/LoginGate";
 
 // ─── 添加视频页 ───
 export default function AddVideoPage({ app }: { app: AppState }) {
@@ -18,10 +19,8 @@ export default function AddVideoPage({ app }: { app: AppState }) {
     return (
       <div className="app">
         {header}
-        <div className="locked-state">
-          <span className="locked-state__icon"><Icon name="lock" size={48} /></span>
-          <div>登录后即可提交 YouTube 视频自动解析跟读</div>
-          <button className="btn btn--primary" onClick={() => p.setPage("login")}>登录</button>
+        <div className="page-pad">
+          <LoginGate app={p} title="添加视频" hint="登录后即可提交 YouTube 视频自动解析跟读" returnPage="add" />
         </div>
       </div>
     );
