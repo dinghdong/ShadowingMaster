@@ -400,6 +400,9 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   background: var(--border);
   margin-top: 0;
 }
+@media (max-width: 899px) {
+  .practice__divider { display: none; }
+}
 .practice__subtitle-toggle {
   display: inline-flex; align-items: center; gap: 5px;
   margin-left: auto;
