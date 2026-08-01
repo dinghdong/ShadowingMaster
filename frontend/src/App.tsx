@@ -847,7 +847,7 @@ export default function App() {
         </div>
 
         <div className="page-pad">
-          <div className="player-frame">
+          <div className={`player-frame ${p.isPlaying ? "player-frame--playing" : ""}`}>
             {p.currentVideo?.video_path ? (
               <video
                 ref={p.videoRef}

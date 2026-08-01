@@ -555,9 +555,14 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   font-size: 22px; display: flex; align-items: center; justify-content: center;
   cursor: pointer; z-index: 5;
   box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+  opacity: 1;
 }
 .play-fab:hover { background: rgba(0,0,0,0.78); transform: translate(-50%, -50%) scale(1.06); }
+/* 播放时自动隐藏中心播放/暂停按钮；悬停时或暂停时重新显示 */
+.player-frame--playing .play-fab { opacity: 0; pointer-events: none; }
+.player-frame:hover .play-fab,
+.player-frame:not(.player-frame--playing) .play-fab { opacity: 1; pointer-events: auto; }
 
 /* —— 设置浮层（跟读页 ⚙️） —— */
 .popover {
