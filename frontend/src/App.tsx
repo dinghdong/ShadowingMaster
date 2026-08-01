@@ -3,6 +3,7 @@ import { useApp, AppState } from "./useApp";
 import { tokenize, compareWords, mediaUrl, Sentence, posLabel } from "./shared";
 import { Icon, IconName } from "./components/Icon";
 import { getStoredTheme, toggleTheme, ThemeMode } from "./theme-mode";
+import LandingPage from "./LandingPage";
 
 // 评分配色 / 文案（跟读评价）—— 用语义 CSS 变量，随深浅主题自适应
 const scoreVar = (v: number) =>
@@ -313,12 +314,84 @@ function ShadowActions({ p, s, idx }: { p: AppState; s: Sentence; idx: number })
   );
 }
 
-// ─── 跟读页单句卡片 ───
+// ─── 生词本条目：中文释义 / 例句 / 来源（视频·句序）───
+function WordBookCard({ w, p }: { w: any; p: AppState }) {
+  const zh = w.definition_zh || w.definition;
+  const hasSource = w.video_id && w.sentence_id;
+  return (
+    <div
+      key={w.id}
+      onClick={() => p.openWordOrigin(w)}
+      className={`list-card list-card--sm fade-up ${hasSource ? "list-card--click" : ""}`}
+      style={{ marginBottom: "var(--sp-3)" }}
+    >
+      <div className="row row--between" style={{ marginBottom: "var(--sp-1)" }}>
+        <div className="title-strong" style={{ fontSize: "var(--fs-title)" }}>{w.word}</div>
+        {hasSource && (
+          <div className="link-btn" style={{ color: "var(--primary)", flexShrink: 0, marginLeft: "var(--sp-2)" }}>
+            <Icon name="reply" size={13} /> 回到原句
+          </div>
+        )}
+      </div>
+      <div className="wb-def">{zh || "暂无释义"}</div>
+      {w.example && (
+        <div className="wb-example">
+          “{w.example}”
+          {w.example_zh && <span className="wb-example-zh">“{w.example_zh}”</span>}
+        </div>
+      )}
+      {hasSource && (
+        <div className="wb-source">
+          <Icon name="film" size={12} />
+          <span className="wb-source__title">{w.video_title || "未知视频"}</span>
+          <span className="wb-source__sep">·</span>
+          <span>第{(w.sentence_index ?? 0) + 1}句</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 句子进度小标签（右侧列表用）───
+function ProgChips({ p, s }: { p: AppState; s: Sentence }) {
+  const rec = p.recordings[s.id];
+  const chips: React.ReactNode[] = [];
+  if (rec?.score) chips.push(<span key="shadow" className="prog-chip prog-chip--score"><Icon name="trophy" size={11} /> {rec.score.overall}</span>);
+  if (p.dictationChecked[s.id]) chips.push(<span key="dict" className="prog-chip prog-chip--ok"><Icon name="check" size={11} /> 听写</span>);
+  if (p.clozeChecked[s.id]) chips.push(<span key="cloze" className="prog-chip prog-chip--ok"><Icon name="check" size={11} /> 挖空</span>);
+  if (p.favorites.has(s.id)) chips.push(<span key="fav" className="prog-chip prog-chip--fav"><Icon name="starFill" size={11} /> 收藏</span>);
+  if (p.notes[s.id]) chips.push(<span key="note" className="prog-chip prog-chip--note"><Icon name="note" size={11} /> 笔记</span>);
+  return <div className="tag-row">{chips}</div>;
+}
+
+// ─── 右侧全句滚动列表行 ───
+function SentenceRow({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
+  const isCurrent = idx === p.currentIndex;
+  return (
+    <div
+      id={`sent-${idx}`}
+      onClick={() => p.jumpToSentence(idx)}
+      className={`sentence-row ${isCurrent ? "sentence-row--current" : ""} ${idx < p.currentIndex ? "sentence-row--read" : ""}`}
+    >
+      <div className="sentence-row__main">
+        <span className="sentence-row__idx">{idx + 1}</span>
+        <div className="sentence-row__text">
+          <div className="sentence-row__en">{s.english_text}</div>
+          {s.chinese_text && <div className="sentence-row__cn">{s.chinese_text}</div>}
+        </div>
+      </div>
+      <ProgChips p={p} s={s} />
+    </div>
+  );
+}
+
+// ─── 左侧当前句练习台 ───
 function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
   const isCurrent = idx === p.currentIndex;
   const tokens = tokenize(s.english_text);
+  const isHidden = p.practiceMode === "view" && (p.intensiveHidden[s.id] ?? true);
 
-  const showKaraoke = p.wordHighlight && isCurrent && (p.practiceMode === "watch" || p.intensiveRevealed);
+  const showKaraoke = p.wordHighlight && isCurrent && ((p.practiceMode === "view" && !isHidden) || p.practiceMode === "shadow");
   const wordCount = tokens.filter((t) => !t.space).length;
   let activeWord = -1;
   if (showKaraoke) {
@@ -342,11 +415,12 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
       return (
         <span
           key={i}
-          onClick={(e) => { if (t.isHard) { e.stopPropagation(); p.handleWordClick(t.text); } }}
+          onClick={(e) => { e.stopPropagation(); p.handleWordClick(t.text); }}
+          className={t.isHard ? "word-token word-token--hard" : "word-token"}
           style={{
             color,
             fontWeight: (isActive || t.isHard) ? "var(--fw-bold)" : "var(--fw-regular)",
-            cursor: t.isHard ? "pointer" : "default",
+            cursor: "pointer",
             background: isSpoken ? "var(--primary)" : isActive ? "var(--primary-soft)" : "transparent",
             borderRadius: "var(--sp-1)",
             padding: (isSpoken || isActive) ? "1px 3px" : 0,
@@ -384,9 +458,21 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
 
   let body: React.ReactNode = null;
 
-  if (p.practiceMode === "watch" || p.practiceMode === "shadow") {
+  if (p.practiceMode === "view") {
+    body = isHidden ? (
+      <div style={{ position: "relative", borderRadius: "var(--r-md)", minHeight: 80 }}>
+        <div style={{ filter: "blur(6px)", userSelect: "none", pointerEvents: "none" }}>{fullSubtitle}</div>
+        <div
+          onClick={(e) => { e.stopPropagation(); p.revealIntensive(s.id); }}
+          className="intensive-mask"
+        >
+          <Icon name="lock" size={14} /> 字幕已隐藏 · 点击显示
+        </div>
+      </div>
+    ) : fullSubtitle;
+  } else if (p.practiceMode === "shadow") {
     body = subtitleBlock;
-    if (p.practiceMode === "shadow" && isCurrent && p.recognizedText) {
+    if (isCurrent && p.recognizedText) {
       body = (
         <>
           {subtitleBlock}
@@ -401,20 +487,6 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
         </>
       );
     }
-  } else if (p.practiceMode === "intensive") {
-    body = p.intensiveRevealed ? fullSubtitle : (
-      <div style={{ position: "relative", borderRadius: "var(--r-md)" }}>
-        <div style={{ filter: "blur(6px)", opacity: isCurrent ? 1 : 0.4, userSelect: "none", pointerEvents: "none" }}>
-          {fullSubtitle}
-        </div>
-        <div
-          onClick={isCurrent ? (e) => { e.stopPropagation(); p.revealIntensive(); } : undefined}
-          className={`intensive-mask ${isCurrent ? "" : "intensive-mask--dim"}`}
-        >
-          {isCurrent && <><Icon name="lock" size={14} /> 字幕已隐藏 · 点击显示</>}
-        </div>
-      </div>
-    );
   } else if (p.practiceMode === "dictation") {
     const showHint = !!s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both");
     const dm = compareWords(s.english_text, p.dictationTexts[s.id] || "");
@@ -492,35 +564,13 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
     );
   }
 
-  const cls = `sentence ${idx < p.currentIndex ? "sentence--read" : ""} ${isCurrent ? "sentence--current" : ""}`;
   return (
-    <div
-      id={`sent-${idx}`}
-      onClick={() => p.jumpToSentence(idx)}
-      className={cls}
-    >
-      {p.practiceMode === "intensive" && isCurrent && (
-        <button
-          aria-label="toggle-reveal"
-          onClick={(e) => { e.stopPropagation(); p.revealIntensive(); }}
-          title={p.intensiveRevealed ? "隐藏原文" : "显示原文"}
-          className="reveal-btn"
-        ><Icon name={p.intensiveRevealed ? "eyeOff" : "eye"} size={15} /></button>
-      )}
+    <div className="practice__panel sentence sentence--current" onClick={(e) => e.stopPropagation()}>
       {body}
-      <div className="sentence__bar" onClick={(e) => e.stopPropagation()}>
+      <div className="sentence__bar">
         <span className="sentence__idx">{idx + 1}</span>
         <button aria-label={`play-sentence-${idx}`} onClick={() => p.playSentenceAt(idx)} className="round-play"><Icon name="play" size={11} /></button>
         <div style={{ flex: 1 }} />
-        {p.practiceMode === "intensive" && (
-          <>
-            <ActionBtn label="复制" onClick={() => p.copySentence(s.english_text)}><Icon name="copy" size={15} /></ActionBtn>
-            <ActionBtn label="收藏" active={p.favorites.has(s.id)} onClick={() => p.toggleFav(s.id)}>
-              <Icon name={p.favorites.has(s.id) ? "starFill" : "star"} size={15} />
-            </ActionBtn>
-            <ActionBtn label="笔记" badge={!!p.notes[s.id]} onClick={() => p.openNote(s.id)}><Icon name="note" size={15} /></ActionBtn>
-          </>
-        )}
         {p.practiceMode === "dictation" && (
           <CheckBtn label={`check-dictation-${idx}`} checked={!!p.dictationChecked[s.id]} onCheck={() => p.checkDictation(s.id)} onRedo={() => p.redoDictation(s.id)} />
         )}
@@ -528,8 +578,13 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
           <CheckBtn label={`check-cloze-${idx}`} checked={!!p.clozeChecked[s.id]} onCheck={() => p.checkCloze(s.id)} onRedo={() => p.redoCloze(s.id)} />
         )}
         {p.practiceMode === "shadow" && <ShadowActions p={p} s={s} idx={idx} />}
+        <ActionBtn label="复制" onClick={() => p.copySentence(s.english_text)}><Icon name="copy" size={15} /></ActionBtn>
+        <ActionBtn label="收藏" active={p.favorites.has(s.id)} onClick={() => p.toggleFav(s.id)}>
+          <Icon name={p.favorites.has(s.id) ? "starFill" : "star"} size={15} />
+        </ActionBtn>
+        <ActionBtn label="笔记" badge={!!p.notes[s.id]} onClick={() => p.openNote(s.id)}><Icon name="note" size={15} /></ActionBtn>
       </div>
-      {p.practiceMode === "intensive" && p.openNoteId === s.id && <NoteEditor s={s} p={p} />}
+      {p.openNoteId === s.id && <NoteEditor s={s} p={p} />}
     </div>
   );
 }
@@ -552,7 +607,7 @@ function DesktopShell({ p, theme, onToggleTheme, children }: {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar__top">
-          <div className="sidebar__brand">ShadowingMaster</div>
+          <button className="sidebar__brand" onClick={() => p.setPage("landing")} aria-label="返回首页">ShadowingMaster</button>
           <div className="sidebar__sub">英语口语跟读训练</div>
         </div>
 
@@ -604,6 +659,8 @@ export default function App() {
 
   if (p.loading) return <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><span className="meta">Loading…</span></div>;
 
+  if (p.page === "landing") return <LandingPage {...p} theme={theme} onToggleTheme={onToggleTheme} />;
+
   if (p.page === "login") return <LoginPage {...p} theme={theme} onToggleTheme={onToggleTheme} />;
 
   const withShell = (node: React.ReactNode) => (
@@ -647,11 +704,11 @@ export default function App() {
               </div>
               <div className="video-card__body">
                 <div className="title-strong" style={{ marginBottom: 6 }}>{v.title}</div>
-                <div className="row" style={{ gap: "var(--sp-3)", fontSize: "var(--fs-meta)", color: "var(--text-2)" }}>
-                  <span className="row" style={{ gap: 4 }}><Icon name="clock" size={13} /> {Math.floor(v.duration_seconds / 60)}:{String(v.duration_seconds % 60).padStart(2, "0")}</span>
-                  <span className="row" style={{ gap: 4 }}><Icon name="lines" size={13} /> {v.sentence_count}句</span>
+                <div className="row" style={{ gap: "var(--sp-3)", fontSize: "var(--fs-meta)", color: "var(--text-2)", flexWrap: "nowrap" }}>
+                  <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="clock" size={13} /> {Math.floor(v.duration_seconds / 60)}:{String(v.duration_seconds % 60).padStart(2, "0")}</span>
+                  <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="lines" size={13} /> {v.sentence_count}句</span>
                   {p.progressMap && p.progressMap[v.id] != null && (
-                    <span style={{ color: "var(--primary)", fontWeight: "var(--fw-semibold)" }}>上次学到 第{p.progressMap[v.id] + 1}句</span>
+                    <span style={{ color: "var(--primary)", fontWeight: "var(--fw-semibold)", whiteSpace: "nowrap" }}>上次学到 第{p.progressMap[v.id] + 1}句</span>
                   )}
                 </div>
               </div>
@@ -673,15 +730,7 @@ export default function App() {
         <div className="page-pad wordbook-grid">
           {!p.user ? <div className="empty">请登录后查看生词本</div> :
            p.wordBook.length === 0 ? <div className="empty">还没有收藏生词</div> :
-           p.wordBook.map((w: any) => (
-            <div key={w.id} onClick={() => p.openWordOrigin(w)} className={`list-card list-card--sm fade-up ${w.video_id && w.sentence_id ? "list-card--click" : ""}`} style={{ marginBottom: "var(--sp-3)" }}>
-              <div className="row row--between" style={{ marginBottom: "var(--sp-1)" }}>
-                <div className="title-strong" style={{ fontSize: "var(--fs-title)" }}>{w.word}</div>
-                {w.video_id && w.sentence_id && <div className="link-btn" style={{ color: "var(--primary)" }}><Icon name="reply" size={13} /> 回到原句</div>}
-              </div>
-              <div className="hint">{w.definition || "暂无释义"}</div>
-            </div>
-          ))}
+           p.wordBook.map((w: any) => <WordBookCard key={w.id} w={w} p={p} />)}
         </div>
       </div>
     );
@@ -793,20 +842,39 @@ export default function App() {
           </div>
         </div>
 
-        <div className="page-pad" style={{ paddingBottom: "var(--sp-2)", display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
-          {(["intensive", "shadow", "dictation", "cloze"] as const).map((m) => (
+        <div className="practice__modebar">
+          {(["view", "shadow", "dictation", "cloze"] as const).map((m) => (
             <button key={m} onClick={() => p.setPracticeMode(m)}
               className={`chip ${p.practiceMode === m ? "chip--active" : ""}`}>
-              {m === "intensive" ? "精听" : m === "shadow" ? "跟读" : m === "dictation" ? "听写" : "挖空"}
+              {m === "view" ? "原文" : m === "shadow" ? "跟读" : m === "dictation" ? "听写" : "挖空"}
             </button>
           ))}
+          {p.practiceMode === "view" && p.currentSentence && (
+            <button
+              className="practice__subtitle-toggle"
+              onClick={() => p.revealIntensive(p.currentSentence.id)}
+            >
+              <Icon name={(p.intensiveHidden[p.currentSentence.id] ?? true) ? "eye" : "eyeOff"} size={14} />
+              {(p.intensiveHidden[p.currentSentence.id] ?? true) ? "显示字幕" : "隐藏字幕"}
+            </button>
+          )}
         </div>
+
+        {p.currentSentence && (
+          <SentenceCard p={p} s={p.currentSentence} idx={p.currentIndex} />
+        )}
+
+        {p.currentVideo?.description && (
+          <div style={{ paddingTop: "var(--sp-2)", paddingBottom: 0 }}>
+            <p className="video-desc video-desc--full">{p.currentVideo.description}</p>
+          </div>
+        )}
       </div>
       </div>
 
-      <div className="page-pad practice__right" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="page-pad practice__right">
         {p.sentences.map((s, idx) => (
-          <SentenceCard key={s.id} p={p} s={s} idx={idx} />
+          <SentenceRow key={s.id} p={p} s={s} idx={idx} />
         ))}
       </div>
 
@@ -901,12 +969,19 @@ export default function App() {
               {p.wordDetail?.meanings?.map((m, i) => (
                 <div key={i} style={{ marginBottom: "var(--sp-3)" }}>
                   <div className="pos-tag">{posLabel(m.partOfSpeech)}</div>
-                  <div className="meaning">{m.definition}</div>
+                  {/* 中文释义为主，英文释义作对照（翻译缺失时回退） */}
+                  <div className="meaning">{m.definitionZh || m.definition}</div>
+                  {m.definitionZh && m.definition && m.definitionZh !== m.definition && (
+                    <div className="meaning-en">{m.definition}</div>
+                  )}
                   {m.example && (
                     <div className="example">
                       “{m.example}”
                       <button aria-label={`speak-example-${i}`} onClick={() => p.speakWord(m.example!)} className="example__speak"><Icon name="volume" size={12} /></button>
                     </div>
+                  )}
+                  {m.exampleZh && (
+                    <div className="example-zh">“{m.exampleZh}”</div>
                   )}
                 </div>
               ))}
