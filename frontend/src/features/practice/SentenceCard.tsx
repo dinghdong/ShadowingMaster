@@ -77,9 +77,9 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
   let body: React.ReactNode = null;
 
   if (p.practiceMode === "view") {
-    // 精听（字幕隐藏）且未开启逐词高亮 → 保持隐藏，逼用户靠听力；
-    // 精听 + 已开启逐词高亮 → 显示字幕并启用卡拉OK逐词点亮（见 highlightCurrent）。
-    body = isHidden && !p.wordHighlight ? (
+    // 精听（字幕隐藏）→ 保持隐藏，逼用户靠听力；点击后显示字幕。
+    // 显示字幕时，若开启逐词高亮则启用卡拉OK逐词点亮（见 highlightCurrent）。
+    body = isHidden ? (
       <div style={{ position: "relative", borderRadius: "var(--r-md)", minHeight: 80 }}>
         <div style={{ filter: "blur(6px)", userSelect: "none", pointerEvents: "none" }}>{fullSubtitle}</div>
         <div
