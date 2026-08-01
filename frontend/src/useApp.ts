@@ -24,6 +24,11 @@ export interface ShadowRecording {
   score: ShadowScore | null;
 }
 
+// 跟读/听写/挖空 三种练习模式：均按「单句播放、句末自停」处理，方便逐句练习；
+// 仅 view(原文/精听) 为整段连续自动播放。
+const SINGLE_SENTENCE_MODES = new Set(["shadow", "dictation", "cloze"]);
+const isSingleSentenceMode = (m: string) => SINGLE_SENTENCE_MODES.has(m);
+
 export function useApp() {
   // ── History 路由（零依赖，无 #）：/ 落地页、/app 列表、/video/:id 跟读、/wordbook、/login ──
   const parsePath = (path?: string): { page: Page; videoId: number | null } => {
@@ -232,8 +237,8 @@ export function useApp() {
     setPracticeModeState(m);
     resetSentenceState();
     // 不再清空听写/挖空：同一句话可同时保留多种练习结果
-    // 跟读模式：切入即从头播当前句，句末自动暂停，方便立刻跟读/录音
-    if (m === "shadow" && currentSentence) {
+    // 练习模式（跟读/听写/挖空）：切入即从头播当前句，句末自动暂停，方便逐句练习
+    if (isSingleSentenceMode(m) && currentSentence) {
       playFrom(currentSentence.start_time, currentSentence.end_time);
     }
   };
@@ -440,7 +445,7 @@ export function useApp() {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      if (practiceMode === "shadow" && currentSentence) {
+      if (isSingleSentenceMode(practiceMode) && currentSentence) {
         // 已播到句末则从句首重来，否则从当前位置继续到句末
         if (v.currentTime >= currentSentence.end_time - 0.05) v.currentTime = currentSentence.start_time;
         playEndRef.current = currentSentence.end_time;
@@ -459,7 +464,7 @@ export function useApp() {
     goSentence(idx);
     const v = videoRef.current;
     if (!v) return;
-    playEndRef.current = practiceMode === "shadow" ? s.end_time : null;
+    playEndRef.current = isSingleSentenceMode(practiceMode) ? s.end_time : null;
     v.currentTime = s.start_time;
     v.play().catch(() => {});
   };
@@ -500,8 +505,8 @@ export function useApp() {
       v.currentTime = currentSentence.start_time;
       return;
     }
-    if (end == null && practiceMode === "shadow" && currentSentence && t >= currentSentence.end_time) {
-      // 跟读模式兜底：即使从连续播放进入，也在当前句末暂停，不自动跳下一句
+    if (end == null && isSingleSentenceMode(practiceMode) && currentSentence && t >= currentSentence.end_time) {
+      // 练习模式兜底：即使从连续播放进入，也在当前句末暂停，不自动跳下一句
       v.pause();
       return;
     }
