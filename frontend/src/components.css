@@ -658,6 +658,33 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 }
 .divider { height: 1px; background: var(--border); border: none; margin: var(--sp-3) 0; }
 
+/* ============================================================
+   移动端（< 900px）：跟读页 — 视频播放器吸顶固定
+   ============================================================ */
+@media (max-width: 899px) {
+  /* 让 .practice__left 的盒子消失，其内部（导航/视频/模式/当前句）
+     与右侧句子列表共同成为 .practice 的直接子级，
+     使视频的 sticky 包含块覆盖整页（含句子列表），
+     滚动句子列表时视频播放器保持固定在顶部 */
+  .practice { display: block; }
+  .practice__left { display: contents; }
+  .practice__left > .page-pad { display: contents; }
+
+  /* 顶栏（返回 / 标题 / 设置）吸顶 */
+  .player-bar { top: 0; z-index: 30; }
+
+  /* 视频播放器吸顶，紧贴导航下方；整页滚动时保持固定 */
+  .player-frame {
+    position: sticky;
+    top: 72px;
+    z-index: 25;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  /* 句子列表顶部留白，避免首句被吸顶视频遮挡 */
+  .practice__right { padding-top: var(--sp-3); }
+}
+
 /* 移动端默认隐藏桌面侧边栏，由页面自己的顶栏接管导航 */
 .sidebar { display: none; }
 
