@@ -869,12 +869,6 @@ export default function App() {
         {p.currentSentence && (
           <SentenceCard p={p} s={p.currentSentence} idx={p.currentIndex} />
         )}
-
-        {p.currentVideo?.description && (
-          <div style={{ paddingTop: "var(--sp-2)", paddingBottom: 0 }}>
-            <p className="video-desc video-desc--2">{p.currentVideo.description}</p>
-          </div>
-        )}
       </div>
       </div>
 
