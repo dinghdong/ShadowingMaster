@@ -870,7 +870,7 @@ export default function App() {
 
         {p.currentVideo?.description && (
           <div style={{ paddingTop: "var(--sp-2)", paddingBottom: 0 }}>
-            <p className="video-desc video-desc--full">{p.currentVideo.description}</p>
+            <p className="video-desc video-desc--2">{p.currentVideo.description}</p>
           </div>
         )}
       </div>
