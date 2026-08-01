@@ -817,7 +817,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="page-pad" style={{ marginBottom: "var(--sp-2)" }}>
+        <div className="page-pad">
           <div className="player-frame">
             {p.currentVideo?.video_path ? (
               <video
