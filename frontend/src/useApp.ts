@@ -240,6 +240,13 @@ export function useApp() {
     // 练习模式（跟读/听写/挖空）：切入即从头播当前句，句末自动暂停，方便逐句练习
     if (isSingleSentenceMode(m) && currentSentence) {
       playFrom(currentSentence.start_time, currentSentence.end_time);
+    } else if (m === "view") {
+      // 精听：切回即连续自动播放（不限单句）
+      const v = videoRef.current;
+      if (v) {
+        playEndRef.current = null;
+        v.play().catch(() => {});
+      }
     }
   };
 
