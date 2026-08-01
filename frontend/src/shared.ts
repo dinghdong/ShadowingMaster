@@ -29,36 +29,41 @@ export function mediaUrl(u: string | null | undefined): string {
   return u.startsWith("/") ? `http://localhost:8000${u}` : u;
 }
 
-import COMMON_WORDS_JSON from "./data/common-words.json";
+import EXAM_WORDS_UNION from "./data/exam-words.union.json";
 
 /**
- * 常用词表：SUBTLEXus 字幕语料 top 5000（51M 词美剧/电影字幕统计，带词形变形）。
- * 来源：https://github.com/words/subtlex-word-frequencies （ISC 协议）
- * 阈值经真实语料校准：标红率 9.2%，超 3 个红词的句子仅 18/492（docs/PRD.md 目标：每句 0-3 个）。
+ * 考纲并集（exam-words.union.json：9 级考纲词表去重后剔除 GRE，分级源数据见同目录 exam-words.json）。
+ * 作为中国英语学习者的「已知词」基线：落在并集之外的词才是真正值得学的「重点词」。
+ * 扁平数组只够做 isHardWord 判定；如需按级别分层展示，再按需 import exam-words.json。
+ * 想调整基线构成（如把托福/雅思也剔出已知基线），改构建脚本的分级规则后重新生成 union 即可。
  */
-const COMMON_WORDS = new Set<string>(COMMON_WORDS_JSON.map((w) => w.toLowerCase()));
+const KNOWN_WORDS = new Set<string>(EXAM_WORDS_UNION as string[]);
 
 /** 轻量词形归一：复数/过去式/进行时/所有格还原后查表 */
 function isCommon(w: string): boolean {
-  if (COMMON_WORDS.has(w)) return true;
+  if (KNOWN_WORDS.has(w)) return true;
   for (const n of [1, 2, 3]) { // s / es / ies 粗处理
     const stem = w.slice(0, w.length - n);
-    if (stem.length >= 3 && COMMON_WORDS.has(stem)) return true;
+    if (stem.length >= 3 && KNOWN_WORDS.has(stem)) return true;
   }
-  if (w.endsWith("ies") && COMMON_WORDS.has(w.slice(0, -3) + "y")) return true;
-  if (w.endsWith("ied") && COMMON_WORDS.has(w.slice(0, -3) + "y")) return true;
+  if (w.endsWith("ies") && KNOWN_WORDS.has(w.slice(0, -3) + "y")) return true;
+  if (w.endsWith("ied") && KNOWN_WORDS.has(w.slice(0, -3) + "y")) return true;
   for (const suf of ["ed", "ing"]) {
     if (w.endsWith(suf)) {
       const b = w.slice(0, -suf.length);
-      if (COMMON_WORDS.has(b)) return true;
-      if (b.length >= 2 && COMMON_WORDS.has(b.slice(0, -1))) return true; // 双写辅音
-      if (COMMON_WORDS.has(b + "e")) return true; // 去 e 变形
+      if (KNOWN_WORDS.has(b)) return true;
+      if (b.length >= 2 && KNOWN_WORDS.has(b.slice(0, -1))) return true; // 双写辅音
+      if (KNOWN_WORDS.has(b + "e")) return true; // 去 e 变形
     }
   }
-  if (w.endsWith("'s") && COMMON_WORDS.has(w.slice(0, -2))) return true;
+  if (w.endsWith("'s") && KNOWN_WORDS.has(w.slice(0, -2))) return true;
   return false;
 }
 
+/**
+ * 判断单词是否「重点词」：落在考纲已知基线（KNOWN_WORDS，见上）之外的即为重点词。
+ * clean 后长度 > 0 才判定，避免标点/空串误判；词形还原逻辑见 isCommon。
+ */
 export function isHardWord(word: string): boolean {
   const clean = word.toLowerCase().replace(/[^a-z']/g, "");
   return clean.length > 0 && !isCommon(clean);
