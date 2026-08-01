@@ -464,11 +464,6 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   font-size: var(--fs-meta);
   color: var(--text-2);
   line-height: var(--lh-body);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
 }
 
 /* 进度小标签 */
