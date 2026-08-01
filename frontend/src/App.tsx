@@ -578,13 +578,17 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
           <CheckBtn label={`check-cloze-${idx}`} checked={!!p.clozeChecked[s.id]} onCheck={() => p.checkCloze(s.id)} onRedo={() => p.redoCloze(s.id)} />
         )}
         {p.practiceMode === "shadow" && <ShadowActions p={p} s={s} idx={idx} />}
-        <ActionBtn label="复制" onClick={() => p.copySentence(s.english_text)}><Icon name="copy" size={15} /></ActionBtn>
-        <ActionBtn label="收藏" active={p.favorites.has(s.id)} onClick={() => p.toggleFav(s.id)}>
-          <Icon name={p.favorites.has(s.id) ? "starFill" : "star"} size={15} />
-        </ActionBtn>
-        <ActionBtn label="笔记" badge={!!p.notes[s.id]} onClick={() => p.openNote(s.id)}><Icon name="note" size={15} /></ActionBtn>
+        {p.practiceMode === "view" && (
+          <>
+            <ActionBtn label="复制" onClick={() => p.copySentence(s.english_text)}><Icon name="copy" size={15} /></ActionBtn>
+            <ActionBtn label="收藏" active={p.favorites.has(s.id)} onClick={() => p.toggleFav(s.id)}>
+              <Icon name={p.favorites.has(s.id) ? "starFill" : "star"} size={15} />
+            </ActionBtn>
+            <ActionBtn label="笔记" badge={!!p.notes[s.id]} onClick={() => p.openNote(s.id)}><Icon name="note" size={15} /></ActionBtn>
+          </>
+        )}
       </div>
-      {p.openNoteId === s.id && <NoteEditor s={s} p={p} />}
+      {p.practiceMode === "view" && p.openNoteId === s.id && <NoteEditor s={s} p={p} />}
     </div>
   );
 }
