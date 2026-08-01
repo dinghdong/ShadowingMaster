@@ -389,7 +389,7 @@ function SentenceRow({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
 function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) {
   const isCurrent = idx === p.currentIndex;
   const tokens = tokenize(s.english_text);
-  const isHidden = p.practiceMode === "view" && (p.intensiveHidden[s.id] ?? true);
+  const isHidden = p.practiceMode === "view" && p.subtitleHidden;
 
   const showKaraoke = p.wordHighlight && isCurrent && ((p.practiceMode === "view" && !isHidden) || p.practiceMode === "shadow");
   const wordCount = tokens.filter((t) => !t.space).length;
@@ -463,7 +463,7 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
       <div style={{ position: "relative", borderRadius: "var(--r-md)", minHeight: 80 }}>
         <div style={{ filter: "blur(6px)", userSelect: "none", pointerEvents: "none" }}>{fullSubtitle}</div>
         <div
-          onClick={(e) => { e.stopPropagation(); p.revealIntensive(s.id); }}
+          onClick={(e) => { e.stopPropagation(); p.revealIntensive(); }}
           className="intensive-mask"
         >
           <Icon name="lock" size={14} /> 字幕已隐藏 · 点击显示
@@ -858,10 +858,10 @@ export default function App() {
           {p.practiceMode === "view" && p.currentSentence && (
             <button
               className="practice__subtitle-toggle"
-              onClick={() => p.revealIntensive(p.currentSentence.id)}
+              onClick={() => p.revealIntensive()}
             >
-              <Icon name={(p.intensiveHidden[p.currentSentence.id] ?? true) ? "eye" : "eyeOff"} size={14} />
-              {(p.intensiveHidden[p.currentSentence.id] ?? true) ? "显示字幕" : "隐藏字幕"}
+              <Icon name={p.subtitleHidden ? "eye" : "eyeOff"} size={14} />
+              {p.subtitleHidden ? "显示字幕" : "隐藏字幕"}
             </button>
           )}
         </div>

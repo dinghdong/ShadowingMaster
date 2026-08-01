@@ -101,8 +101,8 @@ export function useApp() {
   // 精听降级为单句「隐藏字幕」开关；view 模式默认隐藏字幕（即精听），可点击显示。
   const [practiceMode, setPracticeModeState] = useState<"view" | "shadow" | "dictation" | "cloze">(lsPracticeMode);
   const [playhead, setPlayhead] = useState(0);
-  // 每句独立的「隐藏字幕」状态：undefined 表示默认隐藏（精听）
-  const [intensiveHidden, setIntensiveHidden] = useState<Record<number, boolean>>({});
+  // 整段视频共用的「隐藏字幕」开关：默认隐藏（精听），开启后所有句子一起显示
+  const [subtitleHidden, setSubtitleHidden] = useState(true);
   // 听写 / 挖空：每句独立状态（之前是整段共享，切句会互相覆盖 / token 索引跨句冲突）
   const [dictationTexts, setDictationTexts] = useState<Record<number, string>>({});
   const [dictationChecked, setDictationChecked] = useState<Record<number, boolean>>({});
@@ -585,9 +585,8 @@ export function useApp() {
     } catch { /* 不支持语音合成时静默 */ }
   };
 
-  // ── 精听隐藏 / 听写 / 挖空：每句独立检查 ──
-  const revealIntensive = (sentenceId: number) =>
-    setIntensiveHidden((prev) => ({ ...prev, [sentenceId]: !(prev[sentenceId] ?? true) }));
+  // ── 字幕显示/隐藏：整段共享开关 ──
+  const revealIntensive = () => setSubtitleHidden((v) => !v);
   const setDictationText = (sentenceId: number, val: string) =>
     setDictationTexts((prev) => ({ ...prev, [sentenceId]: val }));
   const checkDictation = (sentenceId: number) =>
@@ -800,7 +799,7 @@ export function useApp() {
     loopSingle, setLoopSingle, rate, cycleRate, setRate, RATES, playFrom, playSentenceAt,
     isPlaying, setIsPlaying, togglePlay, jumpToSentence, onVideoLoaded, handleTimeUpdate,
     practiceMode, setPracticeMode,
-    playhead, intensiveHidden, revealIntensive,
+    playhead, subtitleHidden, revealIntensive,
     dictationTexts, setDictationText, dictationChecked, checkDictation, redoDictation,
     clozeAnswers, setClozeAnswer, clozeChecked, checkCloze, redoCloze,
     wordHighlight, setWordHighlight,
