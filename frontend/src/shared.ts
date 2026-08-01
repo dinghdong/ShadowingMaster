@@ -29,45 +29,46 @@ export function mediaUrl(u: string | null | undefined): string {
   return u.startsWith("/") ? `http://localhost:8000${u}` : u;
 }
 
-import EXAM_WORDS_UNION from "./data/exam-words.union.json";
+import EXAM_TARGET_JSON from "./data/exam-words.target.json";
 
 /**
- * 考纲并集（exam-words.union.json：9 级考纲词表去重后剔除 GRE，分级源数据见同目录 exam-words.json）。
- * 作为中国英语学习者的「已知词」基线：落在并集之外的词才是真正值得学的「重点词」。
- * 扁平数组只够做 isHardWord 判定；如需按级别分层展示，再按需 import exam-words.json。
- * 想调整基线构成（如把托福/雅思也剔出已知基线），改构建脚本的分级规则后重新生成 union 即可。
+ * 考纲标注目标词表（exam-words.target.json：CET4/6 + 考研 + 雅思 + 托福 + SAT + GRE 并集，
+ * 17183 词；分级源数据见同目录 exam-words.json）。
+ * 设计（2026-08-01 用户拍板）：命中词表的词 = 考纲要求掌握的词 = 句中标橙提示；
+ * 初中/高中基础词不标，超出所有考纲的词（如 sentience/AI）也不标。
+ * 想调整标注范围（如提到六级及以上），重新生成 target.json 即可。
  */
-const KNOWN_WORDS = new Set<string>(EXAM_WORDS_UNION as string[]);
+const TARGET_WORDS = new Set<string>(EXAM_TARGET_JSON as string[]);
 
-/** 轻量词形归一：复数/过去式/进行时/所有格还原后查表 */
-function isCommon(w: string): boolean {
-  if (KNOWN_WORDS.has(w)) return true;
+/** 轻量词形归一：复数/过去式/进行时/所有格还原后查目标词表 */
+function inTargetWords(w: string): boolean {
+  if (TARGET_WORDS.has(w)) return true;
   for (const n of [1, 2, 3]) { // s / es / ies 粗处理
     const stem = w.slice(0, w.length - n);
-    if (stem.length >= 3 && KNOWN_WORDS.has(stem)) return true;
+    if (stem.length >= 3 && TARGET_WORDS.has(stem)) return true;
   }
-  if (w.endsWith("ies") && KNOWN_WORDS.has(w.slice(0, -3) + "y")) return true;
-  if (w.endsWith("ied") && KNOWN_WORDS.has(w.slice(0, -3) + "y")) return true;
+  if (w.endsWith("ies") && TARGET_WORDS.has(w.slice(0, -3) + "y")) return true;
+  if (w.endsWith("ied") && TARGET_WORDS.has(w.slice(0, -3) + "y")) return true;
   for (const suf of ["ed", "ing"]) {
     if (w.endsWith(suf)) {
       const b = w.slice(0, -suf.length);
-      if (KNOWN_WORDS.has(b)) return true;
-      if (b.length >= 2 && KNOWN_WORDS.has(b.slice(0, -1))) return true; // 双写辅音
-      if (KNOWN_WORDS.has(b + "e")) return true; // 去 e 变形
+      if (TARGET_WORDS.has(b)) return true;
+      if (b.length >= 2 && TARGET_WORDS.has(b.slice(0, -1))) return true; // 双写辅音
+      if (TARGET_WORDS.has(b + "e")) return true; // 去 e 变形
     }
   }
-  if (w.endsWith("'s") && KNOWN_WORDS.has(w.slice(0, -2))) return true;
+  if (w.endsWith("'s") && TARGET_WORDS.has(w.slice(0, -2))) return true;
   return false;
 }
 
 /**
- * 判断单词是否「重点词」：落在考纲已知基线（KNOWN_WORDS，见上）之外的即为重点词。
+ * 判断单词是否应标注（UI 橙色高亮 + 挖空优先挖）：命中考纲目标词表（TARGET_WORDS，见上）即标注。
  * clean 后长度 > 1 才判定：空串/标点不判；单字母（a/I）是最高频虚词，
- * 且词表按 len>=2 构建不含单字母，直接排除避免误标红。词形还原逻辑见 isCommon。
+ * 且词表按 len>=2 构建不含单字母，直接排除。词形还原逻辑见 inTargetWords。
  */
 export function isHardWord(word: string): boolean {
   const clean = word.toLowerCase().replace(/[^a-z']/g, "");
-  return clean.length > 1 && !isCommon(clean);
+  return clean.length > 1 && inTargetWords(clean);
 }
 
 export function tokenize(text: string) {

@@ -1,7 +1,7 @@
 {
  "_meta": {
   "generated": "2026-08-01",
-  "description": "Exam-tier English word lists for the 'known-word' baseline of isHardWord(). Organized by level; see VIDEO-VOCABULARY-FLOW.md.",
+  "description": "Exam-tier English word lists, source data for exam-words.target.json (the highlight wordlist of isHardWord(): CET4/6+kaoyan+ielts+toefl+sat+gre, 2026-08-01 用户拍板标注考纲词). Organized by level; see VIDEO-VOCABULARY-FLOW.md.",
   "normalization": "lowercased; only [a-z'] kept (matches frontend isHardWord replace(/[^a-z']/g,''))",
   "levels": {
    "junior": 1984,
@@ -26,7 +26,7 @@
    "gre": "dtMndas/english-wordlists (GRE_8000_Words)",
    "ielts": "fanhongtao/IELTS (IELTS Word List, regex-extracted)"
   },
-  "notes": "ielts extracted via regex from a prose-mixed source (fanhongtao/IELTS); 专四/专八 (tem4/tem8) not included — kajweb/dict ships them as zips on a CDN, needs unzip step. GRE words are advanced; exclude from isHardWord 'known' baseline if targeting general learners."
+  "notes": "ielts extracted via regex from a prose-mixed source (fanhongtao/IELTS); 专四/专八 (tem4/tem8) not included — kajweb/dict ships them as zips on a CDN, needs unzip step."
  },
  "junior": [
   "ability",
