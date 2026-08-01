@@ -6,3 +6,4 @@ playwright-report/
 backend/media/
 .cache/
 .workbuddy/
+knowledge*.json

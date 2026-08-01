@@ -1,8 +1,11 @@
+"""DB 连接与 schema 初始化（含增量迁移，兼容旧库）。
+原 backend/db.py 迁移至此；DB_PATH 解析随目录层级调整。
+"""
 import sqlite3
-import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "app.db"
+# 本文件位于 backend/core/，故 .parent=backend/core, .parent.parent=backend, .parent.parent.parent=项目根
+DB_PATH = Path(__file__).parent.parent.parent / "app.db"
 
 
 def get_db():
@@ -127,8 +130,7 @@ def init_db():
         if not exists:
             cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {ctype}")
 
-    # 迁移：word_books 表补全「中文释义 / 例句 / 例句中文」三列，并在读取时 JOIN 出
-    # 来源（视频标题 + 句序）所需的关联字段。已存在则跳过，兼容旧库。
+    # 迁移：word_books 表补全「中文释义 / 例句 / 例句中文」三列
     for col, ctype in (("example", "TEXT"), ("definition_zh", "TEXT"), ("example_zh", "TEXT")):
         exists = cursor.execute(
             "SELECT COUNT(*) FROM pragma_table_info('word_books') WHERE name=?", (col,)
