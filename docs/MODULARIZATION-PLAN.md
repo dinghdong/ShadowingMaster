@@ -117,7 +117,7 @@ frontend/src/
 ├── lib/
 │   ├── api.ts                    # 已有，维持
 │   ├── shared.ts                 # 拆为 types.ts（Video/Sentence/Page）+ text.ts（分词/对比）+ dict.ts（词典/翻译）
-│   └── common-words.json         # 已有
+│   └── exam-words.union.json     # 考纲并集词表（isHardWord 已知基线）；分级版 exam-words.json 备用
 ├── styles/
 │   ├── tokens.css / index.css / theme.css
 │   └── components/               # components.css 按组件拆分（可选，见下）
