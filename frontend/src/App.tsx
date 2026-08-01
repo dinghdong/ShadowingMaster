@@ -391,27 +391,24 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
   const tokens = tokenize(s.english_text);
   const isHidden = p.practiceMode === "view" && p.subtitleHidden;
 
-  const showKaraoke = p.wordHighlight && isCurrent && ((p.practiceMode === "view" && !isHidden) || p.practiceMode === "shadow");
+  const highlightCurrent = p.wordHighlight && isCurrent && ((p.practiceMode === "view" && !isHidden) || p.practiceMode === "shadow");
   const wordCount = tokens.filter((t) => !t.space).length;
   let activeWord = -1;
-  if (showKaraoke) {
+  if (highlightCurrent) {
     const prog = (p.playhead - s.start_time) / Math.max(0.001, s.end_time - s.start_time);
     activeWord = Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
   }
 
   let wi = -1;
-  const renderEnglish = (withKaraoke: boolean) =>
+  const renderEnglish = (withHighlight: boolean) =>
     tokens.map((t, i) => {
       if (t.space) return <span key={i}>{t.text}</span>;
       wi++;
-      const isSpoken = withKaraoke && wi < activeWord;
-      const isActive = withKaraoke && wi === activeWord;
-      const color = isSpoken
-        ? "var(--on-primary)"
-        : isActive
-          ? "var(--primary)"
-          : t.isHard ? "var(--danger)"
-            : "var(--text)";
+      const isActive = withHighlight && wi === activeWord;
+      const color = isActive
+        ? "var(--primary)"
+        : t.isHard ? "var(--danger)"
+          : "var(--text)";
       return (
         <span
           key={i}
@@ -421,9 +418,9 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
             color,
             fontWeight: (isActive || t.isHard) ? "var(--fw-bold)" : "var(--fw-regular)",
             cursor: "pointer",
-            background: isSpoken ? "var(--primary)" : isActive ? "var(--primary-soft)" : "transparent",
+            background: isActive ? "var(--primary-soft)" : "transparent",
             borderRadius: "var(--sp-1)",
-            padding: (isSpoken || isActive) ? "1px 3px" : 0,
+            padding: isActive ? "1px 3px" : 0,
             textDecoration: isActive ? "underline" : "none",
             transition: "background 0.15s, color 0.15s",
           }}
@@ -438,7 +435,7 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
     <>
       {showEnglish && (
         <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)", marginBottom: s.chinese_text && showChinese ? 6 : 0 }}>
-          {renderEnglish(showKaraoke)}
+          {renderEnglish(highlightCurrent)}
         </div>
       )}
       {showChinese && (
@@ -450,7 +447,7 @@ function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: number }) 
   const fullSubtitle = (
     <>
       <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)", marginBottom: s.chinese_text && showChinese ? 6 : 0 }}>
-        {renderEnglish(showKaraoke)}
+        {renderEnglish(highlightCurrent)}
       </div>
       {s.chinese_text && showChinese && <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", lineHeight: "var(--lh-body)" }}>{s.chinese_text}</div>}
     </>
