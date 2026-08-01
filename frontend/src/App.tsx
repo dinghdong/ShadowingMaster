@@ -790,14 +790,6 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="setting-row">
-                      <span className="setting-row__label">深色模式</span>
-                      <button onClick={onToggleTheme} aria-label="toggle-theme"
-                        className={`toggle ${theme === "dark" ? "toggle--on" : ""}`}>
-                        <span className="toggle__knob" />
-                      </button>
-                    </div>
-
                     <div style={{ marginTop: "var(--sp-3)" }}>
                       <div className="setting-row__label" style={{ marginBottom: 6 }}>播放速度</div>
                       <div style={{ display: "flex", gap: 4 }}>
