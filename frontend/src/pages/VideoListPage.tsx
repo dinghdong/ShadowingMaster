@@ -35,7 +35,7 @@ export default function VideoListPage({ app }: { app: AppState }) {
               {v.thumbnail_url ? <img src={mediaUrl(v.thumbnail_url)} alt="" /> : <Icon name="film" size={28} />}
             </div>
             <div className="video-card__body">
-              <div className="title-strong" style={{ marginBottom: 6 }}>{v.title}</div>
+              <div className="video-card__title">{v.title}</div>
               <div className="row" style={{ gap: "var(--sp-3)", fontSize: "var(--fs-meta)", color: "var(--text-2)", flexWrap: "nowrap" }}>
                 <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="clock" size={13} /> {Math.floor(v.duration_seconds / 60)}:{String(v.duration_seconds % 60).padStart(2, "0")}</span>
                 <span className="row" style={{ gap: 4, whiteSpace: "nowrap" }}><Icon name="lines" size={13} /> {v.sentence_count}句</span>
