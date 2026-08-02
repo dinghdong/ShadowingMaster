@@ -1,0 +1,14 @@
+[Unit]
+Description=mihomo proxy for ShadowingMaster YouTube egress
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/shadowing/clash
+ExecStart=/usr/local/bin/mihomo -d /opt/shadowing/clash -f /opt/shadowing/clash/config.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,17 +1,67 @@
 """Slice 2 · 视频爬取 CLI：给一个 YouTube URL，下载 + 字幕解析 + 入库一条龙。
 用法：python fetch_video.py <youtube_url>
 """
+import os
 import shutil
 import sys
 
 import yt_dlp
 
 from import_video import MEDIA, ingest
+from core.oss import OSS_ENABLED, upload_file
+
+# 可选：YouTube 登录态 cookie（Netscape 格式），用于绕过 "confirm you're not a bot" 反爬。
+# 通过环境变量 YTDLP_COOKIES_FILE 指定；为空或文件不存在时忽略。
+_YTDLP_COOKIES_FILE = os.environ.get("YTDLP_COOKIES_FILE", "")
+if _YTDLP_COOKIES_FILE and not os.path.isfile(_YTDLP_COOKIES_FILE):
+    _YTDLP_COOKIES_FILE = ""
+
+
+# 检测 node：yt-dlp 的 n 挑战求解需要 >=23.5 的 JS 运行时；缺失则不强加 js_runtimes
+_HAS_NODE = bool(shutil.which("node"))
+
+# 可选：住宅代理（residential proxy），只用于 yt-dlp 的 YouTube 流量。
+# 伦敦 SWAS 数据中心 IP 被 YouTube 主动吊销会话 cookie → 必须走住宅 IP 才能被接受。
+# 通过环境变量 YTDLP_PROXY 指定，形如 http://user:pass@host:port 或 socks5://host:port；
+# 为空时不启用（直连）。注意：必须是「住宅/ISP」代理，数据中心代理同样会被挡。
+_YTDLP_PROXY = os.environ.get("YTDLP_PROXY", "").strip()
+
+
+def _apply_cookies(opts: dict) -> dict:
+    """注入 cookie 文件（绕过 YouTube 反爬）、node 运行时（求解 n 挑战签名）、可选住宅代理。
+
+    关键点：
+    - 不要强制覆盖 player_client（带 cookie 时指定 ios/tv 常只回图片、无可用格式）。
+    - 必须显式开启 js_runtimes={'node':{}}：yt-dlp 默认不实例化任何 JS 运行时，
+      否则 n 挑战无法求解 → 只回图片 / "No video formats found"。
+    - 伦敦数据中心 IP 会被 YouTube 吊销会话，故可用 YTDLP_PROXY 把 yt-dlp 流量导到住宅 IP。
+    """
+    if _YTDLP_COOKIES_FILE:
+        opts["cookiefile"] = _YTDLP_COOKIES_FILE
+    if _HAS_NODE:
+        opts.setdefault("js_runtimes", {})["node"] = {}
+    if _YTDLP_PROXY:
+        opts["proxy"] = _YTDLP_PROXY
+    return opts
+
+
+def _upload_assets(youtube_id: str):
+    """把下载产物（视频 + 封面）上传到 OSS。OSS 未启用时跳过。"""
+    if not OSS_ENABLED:
+        return
+    mp4 = MEDIA / f"{youtube_id}.mp4"
+    if mp4.exists():
+        upload_file(f"/media/{youtube_id}.mp4", str(mp4))
+    for ext in ("jpg", "webp", "png"):
+        thumb = MEDIA / f"{youtube_id}.{ext}"
+        if thumb.exists():
+            upload_file(f"/media/{youtube_id}.{ext}", str(thumb))
+            break
 
 
 def fetch(url: str) -> int:
     # 1. 取视频元信息（id / 标题 / 时长）
-    with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
+    with yt_dlp.YoutubeDL(_apply_cookies({"quiet": True, "skip_download": True})) as ydl:
         info = ydl.extract_info(url, download=False)
     youtube_id, title = info["id"], info["title"]
     duration = int(info.get("duration") or 0)
@@ -38,11 +88,15 @@ def fetch(url: str) -> int:
         "fragment_retries": 10,
         "quiet": False,
     }
+    _apply_cookies(opts)
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([url])
 
     # 3. 解析字幕入库
     video_id = ingest(youtube_id, title, duration, description, tags)
+
+    # 3.5 上传媒体到 OSS（启用时）；失败会让解析任务标记 failed，便于发现配置问题
+    _upload_assets(youtube_id)
 
     # 4. 中文字幕（best-effort：翻译失败不阻塞，事后可 python translate_video.py <id> 补跑）
     try:

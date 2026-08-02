@@ -7,3 +7,8 @@ backend/media/
 .cache/
 .workbuddy/
 knowledge*.json
+cookies.txt
+*.cookies.txt
+
+# Clash config contains CordCloud subscription credentials (trojan passwords/UUIDs) — do NOT commit
+backend/deploy/clash/config.yaml
