@@ -46,23 +46,25 @@ export function TopNav({ p, theme, onToggleTheme }: {
         </div>
       )}
 
-      <button className="btn btn--primary btn--sm topnav__add" onClick={() => p.setPage("add")}>
-        <Icon name="plus" size={16} /> <span className="topnav__add-text">添加视频</span>
-      </button>
-
-      <button className="icon-btn icon-btn--plain" onClick={onToggleTheme} aria-label="切换深浅色" title="切换深浅色">
-        <Icon name={theme === "dark" ? "sun" : "moon"} size={20} />
-      </button>
-
-      {p.user ? (
-        <button className="topnav__avatar" onClick={() => p.setPage("profile")} aria-label="个人中心" title={p.user.email}>
-          <Icon name="user" size={18} />
+      <div className="topnav__actions">
+        <button className="btn btn--primary btn--sm topnav__add" onClick={() => p.setPage("add")}>
+          <Icon name="plus" size={16} /> <span className="topnav__add-text">添加视频</span>
         </button>
-      ) : (
-        <button className="btn btn--sm btn--primary topnav__login" onClick={() => p.setPage("login")}>
-          <Icon name="user" size={16} /> <span className="topnav__login-text">登录</span>
+
+        <button className="icon-btn icon-btn--plain" onClick={onToggleTheme} aria-label="切换深浅色" title="切换深浅色">
+          <Icon name={theme === "dark" ? "sun" : "moon"} size={20} />
         </button>
-      )}
+
+        {p.user ? (
+          <button className="topnav__avatar" onClick={() => p.setPage("profile")} aria-label="个人中心" title={p.user.email}>
+            <Icon name="user" size={18} />
+          </button>
+        ) : (
+          <button className="btn btn--sm btn--primary topnav__login" onClick={() => p.setPage("login")}>
+            <Icon name="user" size={16} /> <span className="topnav__login-text">登录</span>
+          </button>
+        )}
+      </div>
     </header>
   );
 }
