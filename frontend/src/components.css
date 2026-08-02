@@ -139,6 +139,16 @@
 /* ── 页面内容容器（顶栏之下统一最大宽度） ── */
 .content-wrap { max-width: 1240px; margin: 0 auto; padding: var(--sp-6) clamp(var(--sp-4), 4vw, var(--sp-7)); }
 
+/* PC 端添加视频页：解析卡片垂直居中 */
+@media (min-width: 900px) {
+  .add-page .content-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: calc(100vh - var(--topnav-h) - var(--sp-8));
+  }
+}
+
 /* ── 视频列表：欢迎区 / 统计 ── */
 .hero-greet { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-5); }
 .hero-greet__hi { font-size: var(--fs-meta); color: var(--text-2); }

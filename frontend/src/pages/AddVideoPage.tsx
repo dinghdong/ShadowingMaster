@@ -8,7 +8,7 @@ export default function AddVideoPage({ app }: { app: AppState }) {
 
   if (!p.user) {
     return (
-      <div className="app">
+      <div className="app add-page">
         <div className="content-wrap">
           <LoginGate app={p} title="添加视频" hint="登录后即可提交 YouTube 视频自动解析跟读" returnPage="add" />
         </div>
@@ -24,7 +24,7 @@ export default function AddVideoPage({ app }: { app: AppState }) {
         : "任务已提交，排队中…";
 
   return (
-    <div className="app">
+    <div className="app add-page">
       <div className="content-wrap" style={{ maxWidth: 640, margin: "0 auto" }}>
         <div className="card card--pad fade-up">
           <div className="title-strong" style={{ marginBottom: "var(--sp-1)" }}>粘贴 YouTube 链接，自动解析成跟读视频</div>
