@@ -1050,8 +1050,9 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
     grid-template-columns: 1fr 1fr;
     gap: var(--sp-6);
     align-items: start;
+    max-width: 1240px;
     margin: 0 auto;
-    padding: var(--sp-6);
+    padding: var(--sp-6) clamp(var(--sp-4), 4vw, var(--sp-7));
   }
   .practice__left {
     position: sticky;
