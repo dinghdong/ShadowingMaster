@@ -10,8 +10,10 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "shadowingmaster-dev-key-change-in-pro
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-# ── CORS：开发期放行任意 localhost 端口（Vite 5173 / 预览端口等）──
+# ── CORS：开发期放行任意 localhost 端口；生产通过 CORS_ALLOW_ORIGINS 显式放行前端域名 ──
 CORS_ALLOW_ORIGIN_REGEX = r"http://(localhost|127\.0\.0\.1):\d+"
+# 生产前端域名（逗号分隔），如 "https://shadowingmaster.vercel.app"
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["*"]
 CORS_ALLOW_HEADERS = ["*"]

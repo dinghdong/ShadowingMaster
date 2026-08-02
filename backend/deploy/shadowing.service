@@ -1,0 +1,22 @@
+[Unit]
+Description=ShadowingMaster API (FastAPI)
+After=network.target
+
+[Service]
+# 运行用户：无登录权限，仅用于跑服务
+User=shadowing
+Group=shadowing
+# 工作目录 = backend/（app.db 在上级仓库根，media 在 ./media，均随磁盘持久化）
+WorkingDirectory=/opt/shadowing/backend
+# 环境变量从 .env 读取（KEY=VALUE 格式，systemd 会注入进程环境）
+EnvironmentFile=/opt/shadowing/backend/.env
+# 生产环境：不要 --reload；绑定 0.0.0.0 供外部访问
+ExecStart=/opt/shadowing/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+# 标准输出进 journald，可用 `journalctl -u shadowing -f` 看日志
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

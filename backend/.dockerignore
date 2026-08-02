@@ -1,0 +1,12 @@
+media/
+__pycache__/
+*.pyc
+*.pyo
+app.db
+data/
+.git/
+.env
+.venv/
+venv/
+node_modules/
+*.md

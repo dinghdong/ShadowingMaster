@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import (
     CORS_ALLOW_ORIGIN_REGEX,
+    CORS_ALLOW_ORIGINS,
     CORS_ALLOW_CREDENTIALS,
     CORS_ALLOW_METHODS,
     CORS_ALLOW_HEADERS,
@@ -29,6 +30,8 @@ app = FastAPI(title="ShadowingMaster API")
 
 app.add_middleware(
     CORSMiddleware,
+    # 生产前端域名（如 Vercel），由环境变量 CORS_ALLOW_ORIGINS 注入
+    allow_origins=CORS_ALLOW_ORIGINS,
     # 开发期放行任意 localhost 端口（Vite 5173 / 预览端口及重映射端口）
     allow_origin_regex=CORS_ALLOW_ORIGIN_REGEX,
     allow_credentials=CORS_ALLOW_CREDENTIALS,

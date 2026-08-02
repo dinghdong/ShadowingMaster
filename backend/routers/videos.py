@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from core.config import parse_youtube_id
 from core.db import get_db
 from core.security import get_current_user
+from core.oss import get_serve_url
 from models.schemas import VideoOut, ParseRequest
 from services.parse_job import run_parse_job
 
@@ -17,6 +18,9 @@ router = APIRouter(prefix="/api/videos", tags=["videos"])
 def video_to_dict(r) -> dict:
     """把 videos 行转 dict，并把 tags 的 JSON 字符串解析为数组（容错）。"""
     d = dict(r)
+    # 媒体路径：OSS 启用时解析为绝对公开 URL，否则保持相对路径（前端拼 API host）
+    d["video_path"] = get_serve_url(d.get("video_path"))
+    d["thumbnail_url"] = get_serve_url(d.get("thumbnail_url"))
     raw = d.get("tags")
     if isinstance(raw, str) and raw.strip():
         try:
