@@ -93,8 +93,8 @@ function LandingNav(p: Props) {
   return (
     <header className="landing__nav">
       <button className="landing__brand" onClick={() => p.setPage("landing")} aria-label="返回首页">
-        <span className="landing__brand-mark"><Icon name="mic" size={16} /></span>
-        ShadowingMaster
+        <img className="landing__brand-logo" src="/favicon.svg" alt="ShadowingMaster" width={28} height={28} />
+        <span>Shadowing<span style={{ color: "var(--primary)" }}>Master</span></span>
       </button>
       <div className="landing__nav-actions">
         <button className="icon-btn icon-btn--plain" onClick={p.onToggleTheme} aria-label="切换主题" title="切换深色模式">

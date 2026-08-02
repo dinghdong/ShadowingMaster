@@ -57,6 +57,7 @@
 }
 .topnav__brand {
   background: none; border: none; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--ff);
   font-size: var(--fs-pageTitle); font-weight: var(--fw-heavy);
   color: var(--text); letter-spacing: 0.2px; white-space: nowrap;
@@ -1154,6 +1155,7 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   color: var(--text); letter-spacing: 0.2px;
 }
 .landing__brand-mark { width: 28px; height: 28px; border-radius: 9px; background: var(--grad-warm); color: var(--on-primary); display: grid; place-items: center; box-shadow: 0 4px 12px var(--glow); }
+.landing__brand-logo { width: 28px; height: 28px; border-radius: 9px; vertical-align: middle; }
 .landing__nav-actions { display: flex; align-items: center; gap: var(--sp-2); }
 
 /* —— Hero —— */

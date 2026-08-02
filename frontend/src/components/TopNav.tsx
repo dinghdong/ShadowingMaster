@@ -18,7 +18,8 @@ export function TopNav({ p, theme, onToggleTheme }: {
   return (
     <header className="topnav">
       <button className="topnav__brand" onClick={() => p.setPage("landing")} aria-label="返回首页">
-        Shadow<span className="topnav__brand-accent">Master</span>
+        <img className="landing__brand-logo" src="/favicon.svg" alt="ShadowingMaster" width={28} height={28} />
+        <span>Shadowing<span className="topnav__brand-accent">Master</span></span>
       </button>
 
       <nav className="topnav__tabs" aria-label="主导航">
