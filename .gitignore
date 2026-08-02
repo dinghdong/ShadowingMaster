@@ -12,3 +12,6 @@ cookies.txt
 
 # Clash config contains CordCloud subscription credentials (trojan passwords/UUIDs) — do NOT commit
 backend/deploy/clash/config.yaml
+
+# 本地 SQLite 删除备份，仅临时留存，勿提交
+app.db.bak-*
