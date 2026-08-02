@@ -24,9 +24,10 @@ export interface Sentence {
 export type Page = "landing" | "login" | "list" | "player" | "wordbook" | "profile" | "add";
 
 /** 后端相对路径（/media/...）转完整 URL；外链原样返回 */
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
 export function mediaUrl(u: string | null | undefined): string {
   if (!u) return "";
-  return u.startsWith("/") ? `http://localhost:8000${u}` : u;
+  return u.startsWith("/") ? `${API_BASE}${u}` : u;
 }
 
 import EXAM_TARGET_JSON from "./data/exam-words.target.json";
@@ -104,17 +105,20 @@ export interface WordMeaning {
 }
 
 /**
- * 轻量中文翻译：调用免费 MyMemory 翻译 API（en→zh-CN，浏览器直连、CORS 放开）。
+ * 轻量中文翻译：经后端代理调用 MyMemory（en→zh-CN）。
+ * 改为走自家 API，规避浏览器直连外国主机在国内常超时/被重置的问题。
  * 失败（限流/网络）时返回 null，由调用方回退到英文释义，绝不阻塞弹窗。
  */
+import { BASE } from "./api";
+
 export async function translateEnToZh(text: string): Promise<string | null> {
   if (!text || !text.trim()) return null;
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-CN`;
+    const url = `${BASE}/api/translate?q=${encodeURIComponent(text)}&langpair=en|zh-CN`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
-    const t = data?.responseData?.translatedText;
+    const t = data?.translatedText;
     return t ? String(t) : null;
   } catch {
     return null;

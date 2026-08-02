@@ -119,6 +119,13 @@ def init_db():
             FOREIGN KEY (sentence_id) REFERENCES sentences(id),
             UNIQUE(user_id, sentence_id)
         );
+
+        CREATE TABLE IF NOT EXISTS dictionary_cache (
+            word TEXT PRIMARY KEY,
+            payload TEXT NOT NULL,           -- 规范化后的 JSON 响应
+            status TEXT NOT NULL,            -- 'ok' | 'notfound'
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
 

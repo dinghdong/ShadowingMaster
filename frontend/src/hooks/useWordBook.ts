@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getWordBook, addWord, toggleFavorite, saveNote } from "../api";
 import { Page, Sentence, Video, WordDetail, WordMeaning, posLabel, translateEnToZh } from "../shared";
+import { BASE } from "../api";
 import { JumpTarget } from "./useRouting";
 
 export interface WordBookDeps {
@@ -102,31 +103,29 @@ export function useWordBook(deps: WordBookDeps) {
     setSelectedWord(word);
     setWordDetail(null); // 进入加载态
     try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
+      // 改走自家后端代理（/api/dictionary），规避浏览器直连 dictionaryapi.dev
+      // 在国内超时/被重置、且缺词返回 502 的问题。后端已规范化为 {found, phonetic, meanings}。
+      const res = await fetch(`${BASE}/api/dictionary?word=${encodeURIComponent(word.toLowerCase())}`);
       if (res.ok) {
         const data = await res.json();
-        const entry = data[0] || {};
-        const phonetic =
-          entry.phonetic ||
-          (entry.phonetics || []).find((p: any) => p?.text)?.text ||
-          "";
-        const meanings: WordMeaning[] = [];
-        for (const m of entry.meanings || []) {
-          for (const d of m.definitions || []) {
-            meanings.push({ partOfSpeech: m.partOfSpeech, definition: d.definition, example: d.example });
-            if (meanings.length >= 3) break;
-          }
-          if (meanings.length >= 3) break;
+        if (data.found) {
+          const meanings: WordMeaning[] = (data.meanings || []).map((m: any) => ({
+            partOfSpeech: m.partOfSpeech,
+            definition: m.definition,
+            example: m.example || undefined,
+          }));
+          // 并行翻译每个释义与例句为中文（失败则缺省，回退英文）
+          const meaningsZh = await Promise.all(
+            meanings.map(async (m) => ({
+              ...m,
+              definitionZh: (await translateEnToZh(m.definition)) || undefined,
+              exampleZh: m.example ? (await translateEnToZh(m.example)) || undefined : undefined,
+            }))
+          );
+          setWordDetail({ phonetic: data.phonetic || "", meanings: meaningsZh });
+        } else {
+          setWordDetail({ meanings: [], notFound: true });
         }
-        // 并行翻译每个释义与例句为中文（失败则缺省，回退英文）
-        const meaningsZh = await Promise.all(
-          meanings.map(async (m) => ({
-            ...m,
-            definitionZh: (await translateEnToZh(m.definition)) || undefined,
-            exampleZh: m.example ? (await translateEnToZh(m.example)) || undefined : undefined,
-          }))
-        );
-        setWordDetail({ phonetic, meanings: meaningsZh });
       } else {
         setWordDetail({ meanings: [], notFound: true });
       }

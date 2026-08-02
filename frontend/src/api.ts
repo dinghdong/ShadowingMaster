@@ -1,4 +1,4 @@
-const BASE = "http://localhost:8000";
+export const BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
 
 function getToken() {
   return localStorage.getItem("token") || "";

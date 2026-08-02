@@ -25,6 +25,7 @@ from routers.progress import router as progress_router
 from routers.wordbook import router as wordbook_router
 from routers.annotations import router as annotations_router
 from routers.media import router as media_router
+from routers.dictionary import router as dictionary_router
 
 app = FastAPI(title="ShadowingMaster API")
 
@@ -63,6 +64,7 @@ app.include_router(progress_router)
 app.include_router(wordbook_router)
 app.include_router(annotations_router)
 app.include_router(media_router)
+app.include_router(dictionary_router)
 
 
 # ── Init on startup ─────────────────────────────────────────────
