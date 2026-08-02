@@ -31,7 +31,7 @@ export default function App() {
     <DesktopShell p={app} theme={theme} onToggleTheme={onToggleTheme}>{node}</DesktopShell>
   );
 
-  if (app.page === "profile") return withShell(<ProfilePage app={app} theme={theme} onToggleTheme={onToggleTheme} />);
+  if (app.page === "profile") return withShell(<ProfilePage app={app} />);
 
   if (app.page === "add") return withShell(<AddVideoPage app={app} />);
 

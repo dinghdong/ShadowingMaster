@@ -2,10 +2,9 @@ import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
 import { LoginGate } from "../components/LoginGate";
 import { VideoCard } from "../components/VideoCard";
-import { ThemeMode } from "../theme-mode";
 
 // ─── 个人中心页（学习记录 / 账户）───
-export default function ProfilePage({ app, theme, onToggleTheme }: { app: AppState; theme: ThemeMode; onToggleTheme: () => void }) {
+export default function ProfilePage({ app }: { app: AppState }) {
   const p = app;
 
   const records = (p.progressList || [])
@@ -33,17 +32,6 @@ export default function ProfilePage({ app, theme, onToggleTheme }: { app: AppSta
             <div className="profile-card__main">
               <div className="profile-card__email">{p.user.email}</div>
               <div className="profile-card__sub">已登录</div>
-            </div>
-            <div className="profile-card__theme">
-              <span className="profile-card__theme-label">深色模式</span>
-              <button
-                className={`toggle ${theme === "dark" ? "toggle--on" : ""}`}
-                onClick={onToggleTheme}
-                aria-label="切换深色模式"
-                aria-pressed={theme === "dark"}
-              >
-                <span className="toggle__knob" />
-              </button>
             </div>
           </div>
 

@@ -242,8 +242,6 @@
 .profile-card__main { flex: 1; min-width: 0; }
 .profile-card__email { font-size: var(--fs-title); font-weight: var(--fw-bold); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-card__sub { font-size: var(--fs-meta); color: var(--text-2); margin-top: 2px; }
-.profile-card__theme { display: flex; align-items: center; gap: var(--sp-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-pill); padding: var(--sp-2) var(--sp-4); }
-.profile-card__theme-label { font-size: var(--fs-meta); color: var(--text-2); }
 
 /* 圆形图标按钮（顶栏动作） */
 .icon-btn {
