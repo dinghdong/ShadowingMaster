@@ -25,7 +25,7 @@ export function usePlayer(deps: PlayerDeps) {
   const [playhead, setPlayhead] = useState(0);
   const playEndRef = useRef<number | null>(null);     // 单句播放的自动停点；null = 连续播放
   const suppressLoopRef = useRef(false);              // 跟读录音期间抑制单句循环
-  const pendingPlayRef = useRef<number | null>(null); // 进页后待自动播放的起点（位置记忆/跳原句的句位）
+  const pendingPlayRef = useRef<{ start: number; end: number | null } | null>(null); // 进页后待自动播放的片段（位置记忆/跳原句：起点+止点，止点=null 为连续）
   const [isPlaying, setIsPlaying] = useState(false);
   const [loopSingle, setLoopSingle] = useState(false);
   const loopSingleRef = useRef(false);
@@ -87,12 +87,12 @@ export function usePlayer(deps: PlayerDeps) {
   // 从待定起点（位置记忆/跳原句）开始默认连续自动播放；需元数据就绪
   const tryStartPendingPlay = () => {
     const v = videoRef.current;
-    const start = pendingPlayRef.current;
-    if (!v || start == null || v.readyState < 1) return;
+    const pending = pendingPlayRef.current;
+    if (!v || !pending || v.readyState < 1) return;
     pendingPlayRef.current = null;
-    playEndRef.current = null;
+    playEndRef.current = pending.end; // 有止点=单句播放后自停；null=连续
     v.playbackRate = rate;
-    v.currentTime = start;
+    v.currentTime = pending.start;
     v.play().catch(() => {});
   };
 

@@ -142,7 +142,7 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
         )}
       </div>
 
-      {p.startIndex !== null && !p.startDismissed && p.currentIndex === p.startIndex && (
+      {p.resumeIndex != null && !p.resumeDismissed && (
         <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: "var(--sp-2)", background: "var(--primary)", color: "var(--on-primary)", padding: "9px 9px 9px 16px", borderRadius: "var(--r-pill)", boxShadow: "var(--shadow-float)", fontFamily: "var(--ff)", fontSize: "var(--fs-secondary)", fontWeight: "var(--fw-semibold)", zIndex: "var(--z-toast)", maxWidth: "90vw" }}>
           <button onClick={p.jumpToStart} style={{ background: "none", border: "none", color: "var(--on-primary)", fontFamily: "var(--ff)", fontSize: "var(--fs-secondary)", fontWeight: "var(--fw-bold)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
             <span style={{ fontSize: "var(--fs-body)" }}>▶</span> 从头开始

@@ -11,7 +11,7 @@ export interface VideosDeps {
   openVideo: (id: number) => void;
   // ── 以下为跨域回调，由 useApp 延迟绑定（调用点均在渲染提交之后，取值与拆分前的闭包一致）──
   resetSentenceState: () => void;
-  setPendingPlay: (t: number) => void;
+  setPendingPlay: (t: number, end?: number | null) => void;
   tryStartPendingPlay: () => void;
   clearExercises: () => void;
   setFavorites: (v: Set<number>) => void;
@@ -33,10 +33,10 @@ export function useVideos(deps: VideosDeps) {
   const [videos, setVideos] = useState<Video[]>([]);
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  // 从头开始：进入页面时浮条提示"从头开始"，点击后跳到第 1 句并播放
-  const [startIndex, setStartIndex] = useState<number | null>(0);
-  const [startDismissed, setStartDismissed] = useState(false);
-  const suppressScrollRef = useRef(false); // 进页时抑制自动滚动，由浮条触发跳转
+  // 位置恢复：进入页面默认定位到上次学到的位置；resumeIndex 为该位置（无进度/游客为 null），
+  // 同时浮条展示"从头开始"，点击跳回第 1 句并播放
+  const [resumeIndex, setResumeIndex] = useState<number | null>(null);
+  const [resumeDismissed, setResumeDismissed] = useState(false);
   // 学习记录：登录用户加载各视频进度；progressList 供个人中心逐条展示，
   // progressMap 供列表卡片快速显示"上次学到第N句"
   const [progressList, setProgressList] = useState<any[]>([]);
@@ -85,21 +85,33 @@ export function useVideos(deps: VideosDeps) {
         deps.setRecognizedText("");
         deps.setWordMatches([]);
         let idx = 0;
+        let resumeIdx: number | null = null; // 进度恢复的目标句（有记录才非 null）
         const jump = jumpTargetRef.current;
         if (jump && jump.videoId === currentVideoId) {
           // 生词本跳原句：按 sentence_id 定位句序
           jumpTargetRef.current = null;
           const j = data.sentences.findIndex((s: any) => s.id === jump.sentenceId);
           idx = j >= 0 ? j : 0;
+        } else if (localStorage.getItem("token")) {
+          // 位置记忆：登录用户恢复上次句位（游客从头开始）
+          try {
+            const progress = await getProgress();
+            const rec = progress.find((r: any) => r.video_id === currentVideoId);
+            if (rec) {
+              idx = Math.max(0, Math.min(data.sentences.length - 1, rec.last_sentence_index));
+              resumeIdx = idx > 0 ? idx : null;
+            }
+          } catch { /* 静默 */ }
         }
-        // 注：不再自动恢复登录用户上次句位，统一从第 1 句开始；
-        // 进度仍保留在列表/个人中心供查看。
         if (!cancelled) {
-          setStartIndex(0);
-          setStartDismissed(false);
-          suppressScrollRef.current = true; // 进页不自动滚动，等用户点浮条
+          setResumeIndex(resumeIdx);
+          setResumeDismissed(false);
           setCurrentIndex(idx);
-          // 起播由"从头开始"浮条触发，进页不再自动播放
+          // 默认定位到上次学到的位置并播放该句（单句播放后自停，不连续快进），
+          // 句子列表随后自动滚到该句；"从头开始"浮条保留至用户点按/关闭
+          const s = data.sentences[idx];
+          deps.setPendingPlay(s?.start_time ?? 0, s?.end_time ?? null);
+          deps.tryStartPendingPlay();
         }
       });
       return () => { cancelled = true; };
@@ -171,21 +183,20 @@ export function useVideos(deps: VideosDeps) {
     window.scrollTo({ top, behavior: "smooth" });
   };
 
-  // 滚动到当前句：进页时抑制自动滚动（改由"从头开始"浮条触发），会话内导航保持顺滑
+  // 滚动到当前句：进页即定位到上次学到的位置（自动滚到该句），会话内切句保持顺滑
   useEffect(() => {
     if (page !== "player") return;
-    if (suppressScrollRef.current) { suppressScrollRef.current = false; return; }
     scrollToSentence(currentIndex);
   }, [page, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const jumpToStart = () => {
     goSentence(0);
     scrollToSentence(0);
-    deps.setPendingPlay(sentences[0]?.start_time ?? 0);
+    deps.setPendingPlay(sentences[0]?.start_time ?? 0, sentences[0]?.end_time ?? null);
     deps.tryStartPendingPlay();
-    setStartDismissed(true);
+    setResumeDismissed(true);
   };
-  const dismissStart = () => setStartDismissed(true);
+  const dismissStart = () => setResumeDismissed(true);
 
   // ── 提交 YouTube 链接 → 后端异步解析 + 轮询 ──
   const refreshVideos = async () => {
@@ -245,7 +256,7 @@ export function useVideos(deps: VideosDeps) {
   return {
     videos, loading,
     sentences, currentIndex, setCurrentIndex, currentSentence, currentVideo,
-    startIndex, startDismissed, jumpToStart, dismissStart,
+    resumeIndex, resumeDismissed, jumpToStart, dismissStart,
     progressList, progressMap, reportPosition, goSentence,
     parseInput, setParseInput, parseJob, parseError, submitVideoUrl,
   };
