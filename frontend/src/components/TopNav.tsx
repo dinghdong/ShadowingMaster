@@ -47,7 +47,7 @@ export function TopNav({ p, theme, onToggleTheme }: {
       )}
 
       <button className="btn btn--primary btn--sm topnav__add" onClick={() => p.setPage("add")}>
-        <Icon name="plus" size={16} /> 添加视频
+        <Icon name="plus" size={16} /> <span className="topnav__add-text">添加视频</span>
       </button>
 
       <button className="icon-btn icon-btn--plain" onClick={onToggleTheme} aria-label="切换深浅色" title="切换深浅色">
@@ -59,7 +59,9 @@ export function TopNav({ p, theme, onToggleTheme }: {
           <Icon name="user" size={18} />
         </button>
       ) : (
-        <button className="btn btn--sm btn--primary" onClick={() => p.setPage("login")}>登录</button>
+        <button className="btn btn--sm btn--primary topnav__login" onClick={() => p.setPage("login")}>
+          <Icon name="user" size={16} /> <span className="topnav__login-text">登录</span>
+        </button>
       )}
     </header>
   );

@@ -94,6 +94,51 @@
 }
 .topnav__avatar:hover { background: var(--primary-strong); transform: translateY(-1px); }
 
+/* 窄屏下可隐藏的文字标签（由 mobile 媒体查询控制） */
+.topnav__add-text { margin-left: 6px; }
+.topnav__login {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+
+/* ── 窄屏/手机端：顶部导航改为两行，Tab 可横向滚动 ── */
+@media (max-width: 899px) {
+  .topnav {
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .topnav__brand { font-size: var(--fs-3); }
+  .topnav__spacer { display: none; }
+
+  /* 第一行：品牌 | 搜索(收缩) | 添加图标 | 主题 | 用户/登录 */
+  .topnav__search {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    padding: 6px 12px;
+  }
+  .topnav__search-input { min-width: 0; }
+  .topnav__add-text,
+  .topnav__login-text { display: none; }
+
+  /* 第二行：Tab 占满宽度并允许横向滚动 */
+  .topnav__tabs {
+    order: 3;
+    width: 100%;
+    gap: 2px;
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .topnav__tabs::-webkit-scrollbar { display: none; }
+  .topnav__tab {
+    padding: 6px 12px;
+    font-size: var(--fs-secondary);
+  }
+}
+
 /* ── 页面内容容器（顶栏之下统一最大宽度） ── */
 .content-wrap { max-width: 1240px; margin: 0 auto; padding: var(--sp-6) clamp(var(--sp-4), 4vw, var(--sp-7)); }
 
