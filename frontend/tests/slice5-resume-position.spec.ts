@@ -28,8 +28,8 @@ test("跟读位置记忆：重进视频定位到上次学到的位置", async ({
     await page.locator("video").evaluate((v: HTMLVideoElement) => v.pause());
   };
   // 当前句高亮边框 = 品牌橙（toHaveCSS 会自动重试，跳过 border-color 过渡动画的中间帧）
-  const expectCurrent = (sel: string) =>
-    expect(page.locator(sel)).toHaveCSS("border-color", "rgb(255, 127, 80)");
+  const expectCurrent = (sel: string, opts?: { timeout?: number }) =>
+    expect(page.locator(sel)).toHaveCSS("border-color", "rgb(255, 127, 80)", opts);
 
   await page.goto("/app");
   await page.evaluate((t) => localStorage.setItem("token", t), access_token);
@@ -55,10 +55,12 @@ test("跟读位置记忆：重进视频定位到上次学到的位置", async ({
   await freeze();
   await expectCurrent("#sent-2");
   await page.getByText("从头开始").click();
-  await freeze();
   // 点击后跳回第 1 句并播放，浮条消失
   await expectCurrent("#sent-0");
   await expect(page.getByText("从头开始")).toHaveCount(0);
+  // 连续播放：播放头推进到第 2 句且未自动暂停（验证不句末自停）
+  await expectCurrent("#sent-1", { timeout: 20000 });
+  await expect(page.locator("video")).toHaveJSProperty("paused", false);
 
   // 游客（无 token）进入 → 从第 1 句开始，不显示"从头开始"
   await page.evaluate(() => localStorage.removeItem("token"));

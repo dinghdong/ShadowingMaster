@@ -192,7 +192,8 @@ export function useVideos(deps: VideosDeps) {
   const jumpToStart = () => {
     goSentence(0);
     scrollToSentence(0);
-    deps.setPendingPlay(sentences[0]?.start_time ?? 0, sentences[0]?.end_time ?? null);
+    // 「从头开始」= 从第一句连续自动播放（不句末自停），符合整段跟读流
+    deps.setPendingPlay(sentences[0]?.start_time ?? 0, null);
     deps.tryStartPendingPlay();
     setResumeDismissed(true);
   };
