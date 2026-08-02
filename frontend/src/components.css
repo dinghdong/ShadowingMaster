@@ -165,7 +165,9 @@
 }
 .continue-card__thumb {
   width: 168px; height: 94px; border-radius: var(--r-md); flex-shrink: 0;
-  background: #1c1614; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--text) 92%, transparent);
+  color: var(--surface);
+  display: flex; align-items: center; justify-content: center;
 }
 .continue-card__body { flex: 1; min-width: 0; }
 .continue-card__kicker { font-size: var(--fs-meta); color: var(--primary-strong); font-weight: var(--fw-semibold); }
@@ -173,6 +175,28 @@
 .continue-card__bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; margin-top: var(--sp-3); }
 .continue-card__fill { height: 100%; border-radius: 999px; background: var(--primary); }
 .continue-card__meta { font-size: var(--fs-meta); color: var(--text-2); margin-top: 6px; }
+
+@media (max-width: 899px) {
+  .continue-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-4);
+    padding: var(--sp-4);
+  }
+  .continue-card__thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .continue-card__title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .continue-card__meta { white-space: nowrap; }
+  .continue-card > .btn { align-self: stretch; }
+}
 
 /* 筛选条 */
 .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-4); flex-wrap: wrap; }
