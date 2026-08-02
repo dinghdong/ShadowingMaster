@@ -1047,10 +1047,9 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   /* —— 跟读页：左练习台 + 右句子列表 —— */
   .practice {
     display: grid;
-    grid-template-columns: minmax(380px, 460px) minmax(0, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: var(--sp-6);
     align-items: start;
-    max-width: 1320px;
     margin: 0 auto;
     padding: var(--sp-6);
   }
@@ -1103,7 +1102,7 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 }
 
 @media (min-width: 1280px) {
-  .practice { grid-template-columns: 520px minmax(0, 1fr); }
+  .practice { grid-template-columns: 1fr 1fr; }
 }
 
 /* ============================================================
