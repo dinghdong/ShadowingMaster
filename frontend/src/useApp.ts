@@ -114,7 +114,7 @@ export function useApp() {
     user: auth.user, videos: videos.videos, loading: videos.loading,
     progressList: videos.progressList, progressMap: videos.progressMap,
     currentVideoId: routing.currentVideoId, currentVideo: videos.currentVideo, sentences: videos.sentences, currentIndex: videos.currentIndex, goSentence: videos.goSentence,
-    resumeIndex: videos.resumeIndex, resumeDismissed: videos.resumeDismissed, jumpToResume: videos.jumpToResume, dismissResume: videos.dismissResume,
+    startIndex: videos.startIndex, startDismissed: videos.startDismissed, jumpToStart: videos.jumpToStart, dismissStart: videos.dismissStart,
     currentSentence: videos.currentSentence,
     subtitleMode: exercises.subtitleMode, setSubtitleMode: exercises.setSubtitleMode,
     isRecording: recording.isRecording, recognizedText: recording.recognizedText, wordMatches: recording.wordMatches,

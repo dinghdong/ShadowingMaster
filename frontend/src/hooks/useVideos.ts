@@ -33,10 +33,10 @@ export function useVideos(deps: VideosDeps) {
   const [videos, setVideos] = useState<Video[]>([]);
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  // 进度恢复：进入页面时不自动滚动，改为浮条提示"继续学习第 N 句"，点击再跳
-  const [resumeIndex, setResumeIndex] = useState<number | null>(null);
-  const [resumeDismissed, setResumeDismissed] = useState(false);
-  const suppressScrollRef = useRef(false); // 恢复进页时抑制自动滚动
+  // 从头开始：进入页面时浮条提示"从头开始"，点击后跳到第 1 句并播放
+  const [startIndex, setStartIndex] = useState<number | null>(0);
+  const [startDismissed, setStartDismissed] = useState(false);
+  const suppressScrollRef = useRef(false); // 进页时抑制自动滚动，由浮条触发跳转
   // 学习记录：登录用户加载各视频进度；progressList 供个人中心逐条展示，
   // progressMap 供列表卡片快速显示"上次学到第N句"
   const [progressList, setProgressList] = useState<any[]>([]);
@@ -85,33 +85,21 @@ export function useVideos(deps: VideosDeps) {
         deps.setRecognizedText("");
         deps.setWordMatches([]);
         let idx = 0;
-        let resumeIdx: number | null = null; // 进度恢复的目标句（有记录才非 null）
         const jump = jumpTargetRef.current;
         if (jump && jump.videoId === currentVideoId) {
           // 生词本跳原句：按 sentence_id 定位句序
           jumpTargetRef.current = null;
           const j = data.sentences.findIndex((s: any) => s.id === jump.sentenceId);
           idx = j >= 0 ? j : 0;
-        } else if (localStorage.getItem("token")) {
-          // 位置记忆：登录用户恢复上次句位，游客从头开始
-          try {
-            const progress = await getProgress();
-            const rec = progress.find((r: any) => r.video_id === currentVideoId);
-            if (rec) {
-              idx = Math.max(0, Math.min(data.sentences.length - 1, rec.last_sentence_index));
-              resumeIdx = idx;
-            }
-          } catch { /* 静默 */ }
         }
+        // 注：不再自动恢复登录用户上次句位，统一从第 1 句开始；
+        // 进度仍保留在列表/个人中心供查看。
         if (!cancelled) {
-          setResumeIndex(resumeIdx);
-          setResumeDismissed(false);
+          setStartIndex(0);
+          setStartDismissed(false);
           suppressScrollRef.current = true; // 进页不自动滚动，等用户点浮条
           setCurrentIndex(idx);
-          // 进页默认连续自动播放：元数据已就绪（视频被缓存）时直接起播，
-          // 否则等 onLoadedMetadata 触发；两条路径都走 tryStartPendingPlay，避免竞态
-          deps.setPendingPlay(data.sentences[idx]?.start_time ?? 0);
-          deps.tryStartPendingPlay();
+          // 起播由"从头开始"浮条触发，进页不再自动播放
         }
       });
       return () => { cancelled = true; };
@@ -183,18 +171,21 @@ export function useVideos(deps: VideosDeps) {
     window.scrollTo({ top, behavior: "smooth" });
   };
 
-  // 滚动到当前句：进页恢复时抑制自动滚动（改由"继续学习"浮条触发），会话内导航保持顺滑
+  // 滚动到当前句：进页时抑制自动滚动（改由"从头开始"浮条触发），会话内导航保持顺滑
   useEffect(() => {
     if (page !== "player") return;
     if (suppressScrollRef.current) { suppressScrollRef.current = false; return; }
     scrollToSentence(currentIndex);
   }, [page, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const jumpToResume = () => {
-    if (resumeIndex != null) scrollToSentence(resumeIndex);
-    setResumeDismissed(true);
+  const jumpToStart = () => {
+    goSentence(0);
+    scrollToSentence(0);
+    deps.setPendingPlay(sentences[0]?.start_time ?? 0);
+    deps.tryStartPendingPlay();
+    setStartDismissed(true);
   };
-  const dismissResume = () => setResumeDismissed(true);
+  const dismissStart = () => setStartDismissed(true);
 
   // ── 提交 YouTube 链接 → 后端异步解析 + 轮询 ──
   const refreshVideos = async () => {
@@ -254,7 +245,7 @@ export function useVideos(deps: VideosDeps) {
   return {
     videos, loading,
     sentences, currentIndex, setCurrentIndex, currentSentence, currentVideo,
-    resumeIndex, resumeDismissed, jumpToResume, dismissResume,
+    startIndex, startDismissed, jumpToStart, dismissStart,
     progressList, progressMap, reportPosition, goSentence,
     parseInput, setParseInput, parseJob, parseError, submitVideoUrl,
   };
