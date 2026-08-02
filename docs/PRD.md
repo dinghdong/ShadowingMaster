@@ -296,6 +296,13 @@ Slice 0（交互原型）已完成：三变体对比 → 选定 A · 暖橙卡�
 - 视频下载进度展示、失败重试加固
 - 深色模式、动效打磨
 
+### 部署架构（已实现基础改造，2026-08-02）
+- 方向：前端 Vercel（$0） + 后端阿里云 SWAS 伦敦 eu-west-1 全栈 + 媒体走阿里云 OSS（伦敦桶，免备案）。
+- 已落地代码：`backend/core/oss.py`（环境驱动，OSS_* 缺失自动降级本地磁盘）；`routers/media.py` 启用 OSS 时 302 到 OSS 公开 URL；`routers/videos.py` 序列化时经 `get_serve_url` 解析媒体绝对 URL；`fetch_video.py` 下载后上传 mp4/封面到 OSS；`core/config.py`/`main.py` 支持 `CORS_ALLOW_ORIGINS` 环境变量；前端 `api.ts`/`shared.ts` 读 `VITE_API_BASE`。
+- 新增依赖：`oss2`（阿里云 OSS SDK，缺失时自动禁用 OSS，理由见 requirements.txt 注释）。
+- 交付物：`backend/Dockerfile`（python:3.11-slim + ffmpeg + uvicorn）、`backend/.dockerignore`、`backend/.env.example`。
+- 待办（未做）：SWAS 上 `docker run` 实际部署、OSS 桶创建与「公共读」配置、Vercel 绑定域名+HTTPS、前端 `VITE_API_BASE` 设为伦敦公网地址。
+
 ## 关键决策清单（grill收敛结果）
 
 | 决策项 | 结论 |
