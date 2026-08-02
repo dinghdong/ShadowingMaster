@@ -57,8 +57,8 @@ export default function ProfilePage({ app }: { app: AppState }) {
             </div>
           )}
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--sp-5)" }}>
-            <button className="btn btn--sm btn--danger" onClick={p.handleLogout}>退出登录</button>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "var(--sp-6)" }}>
+            <button className="btn btn--danger" onClick={p.handleLogout}>退出登录</button>
           </div>
         </>
         )}
