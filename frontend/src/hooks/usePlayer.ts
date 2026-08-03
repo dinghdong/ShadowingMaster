@@ -26,7 +26,6 @@ export function usePlayer(deps: PlayerDeps) {
   const playEndRef = useRef<number | null>(null);     // 单句播放的自动停点；null = 连续播放
   const suppressLoopRef = useRef(false);              // 跟读录音期间抑制单句循环
   const pendingPlayRef = useRef<{ start: number; end: number | null } | null>(null); // 进页后待自动播放的片段（位置记忆/跳原句：起点+止点，止点=null 为连续）
-  const seekGuardRef = useRef(0);                     // 手动 seek 守卫：屏蔽 seek 完成前幽灵 timeupdate 误改 currentIndex
   const [isPlaying, setIsPlaying] = useState(false);
   const [loopSingle, setLoopSingle] = useState(false);
   const loopSingleRef = useRef(false);
@@ -45,7 +44,6 @@ export function usePlayer(deps: PlayerDeps) {
   const playFrom = (start: number, end: number) => {
     const v = videoRef.current;
     if (!v) return;
-    seekGuardRef.current = Date.now(); // 屏蔽 seek 完成前幽灵 timeupdate
     v.currentTime = start;
     playEndRef.current = end;
     v.play().catch(() => {});
@@ -81,7 +79,6 @@ export function usePlayer(deps: PlayerDeps) {
     goSentence(idx);
     const v = videoRef.current;
     if (!v) return;
-    seekGuardRef.current = Date.now(); // 屏蔽 seek 完成前幽灵 timeupdate（落在上句区间误改 currentIndex）
     playEndRef.current = isSingleSentenceMode(getPracticeMode()) ? s.end_time : null;
     v.currentTime = s.start_time;
     v.play().catch(() => {});
@@ -94,7 +91,6 @@ export function usePlayer(deps: PlayerDeps) {
     if (!v || !pending || v.readyState < 1) return;
     pendingPlayRef.current = null;
     playEndRef.current = pending.end; // 有止点=单句播放后自停；null=连续
-    seekGuardRef.current = Date.now(); // 屏蔽进页定位后幽灵 timeupdate 误改 currentIndex
     v.playbackRate = rate;
     v.currentTime = pending.start;
     v.play().catch(() => {});
@@ -130,13 +126,10 @@ export function usePlayer(deps: PlayerDeps) {
       return;
     }
     // 连续播放：当前句高亮跟随播放头
-    // 守卫：手动跳句后的短时间内（seek 异步，幽灵 timeupdate 可能落在上一句区间）忽略，避免 currentIndex 抖动
-    if (Date.now() - seekGuardRef.current > 450) {
-      const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
-      if (idx >= 0 && idx !== currentIndex) {
-        setCurrentIndex(idx);
-        reportPosition(idx);
-      }
+    const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
+    if (idx >= 0 && idx !== currentIndex) {
+      setCurrentIndex(idx);
+      reportPosition(idx);
     }
   };
 
