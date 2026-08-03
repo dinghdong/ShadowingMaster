@@ -15,9 +15,10 @@ export function ModeBar({ p }: { p: AppState }) {
         <button
           className="practice__subtitle-toggle"
           onClick={() => p.revealIntensive()}
+          title={p.subtitleHidden ? "显示字幕" : "隐藏字幕"}
+          aria-label={p.subtitleHidden ? "显示字幕" : "隐藏字幕"}
         >
           <Icon name={p.subtitleHidden ? "eye" : "eyeOff"} size={14} />
-          {p.subtitleHidden ? "显示字幕" : "隐藏字幕"}
         </button>
       )}
     </div>
