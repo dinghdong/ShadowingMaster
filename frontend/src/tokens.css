@@ -28,6 +28,9 @@
   --warning: #E1A100;       /* 中等评分 */
   --info: #FF7F50;          /* 信息（同主色） */
 
+  --wm-faint: #F0F0F0;      /* 句子编号水印（浅灰，Font B 几何无衬线） */
+  --ff-wm: 'Futura', 'Century Gothic', 'Avenir Next', 'Poppins', var(--ff);
+
   --read-bg: #F5F5F5;       /* 已读句气泡底 */
   --scrim: rgba(45, 30, 20, 0.42);
   --scrim-soft: rgba(45, 30, 20, 0.06);
@@ -108,6 +111,8 @@
   --success: #4FD07F;
   --warning: #FFC24B;
   --info: #FF8C61;
+
+  --wm-faint: #2A2A2A;      /* 深色模式：水印压暗，避免近白刺眼 */
 
   --read-bg: #241F1D;
   --scrim: rgba(0, 0, 0, 0.6);

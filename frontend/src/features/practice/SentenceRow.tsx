@@ -11,8 +11,8 @@ export function SentenceRow({ p, s, idx }: { p: AppState; s: Sentence; idx: numb
       onClick={() => p.jumpToSentence(idx)}
       className={`sentence-row ${isCurrent ? "sentence-row--current" : ""} ${idx < p.currentIndex ? "sentence-row--read" : ""}`}
     >
+      <span className="sentence-row__wm" aria-hidden="true">{idx + 1}</span>
       <div className="sentence-row__main">
-        <span className="sentence-row__idx">{idx + 1}</span>
         <div className="sentence-row__text">
           <div className="sentence-row__en">{s.english_text}</div>
           {s.chinese_text && <div className="sentence-row__cn">{s.chinese_text}</div>}
