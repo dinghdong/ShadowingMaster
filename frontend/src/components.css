@@ -191,6 +191,16 @@
   }
 }
 
+/* ── 桌面端：顶部导航与 Landing Page 头部同宽，避免顶栏占满全屏 ── */
+@media (min-width: 900px) {
+  .topnav {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding-left: clamp(32px, 6vw, 100px);
+    padding-right: clamp(32px, 6vw, 100px);
+  }
+}
+
 /* ── 页面内容容器（顶栏之下统一最大宽度） ── */
 .content-wrap { max-width: 1240px; margin: 0 auto; padding: var(--sp-6) clamp(var(--sp-4), 4vw, var(--sp-7)); }
 
