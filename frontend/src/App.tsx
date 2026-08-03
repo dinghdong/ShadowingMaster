@@ -39,5 +39,6 @@ export default function App() {
 
   if (app.page === "wordbook") return withShell(<WordBookPage app={app} />);
 
-  return withShell(<PracticePage app={app} isMobile={isMobile} />);
+  // 跟读页独占全屏：自带头部（← 标题 / 收藏 / 主题），不要再叠 DesktopShell 顶部导航
+  return <PracticePage app={app} isMobile={isMobile} />;
 }
