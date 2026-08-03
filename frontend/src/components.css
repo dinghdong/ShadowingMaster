@@ -138,9 +138,9 @@
 .topnav__search-input::placeholder { color: var(--text-3); }
 /* 折叠态的搜索图标按钮（桌面常驻搜索框时不显示） */
 .topnav__search-wrap { display: flex; align-items: center; min-width: 0; }
-.topnav__search-toggle { display: none; flex-shrink: 0; color: var(--text-2); }
-.topnav__search-clear { flex-shrink: 0; color: var(--text-3); }
-.topnav__search-close { display: none; flex-shrink: 0; color: var(--text-3); }
+.topnav .topnav__search-toggle { display: none; flex-shrink: 0; color: var(--text-2); }
+.topnav .topnav__search-clear { flex-shrink: 0; color: var(--text-3); }
+.topnav .topnav__search-close { display: none; flex-shrink: 0; color: var(--text-3); }
 .topnav__add { white-space: nowrap; }
 .topnav__avatar {
   width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
@@ -172,7 +172,7 @@
 
   /* 搜索折叠为图标；展开时占满第一行、隐藏右侧操作 */
   .topnav__search-wrap { grid-row: 1; grid-column: 2; display: flex; justify-content: flex-end; min-width: 0; }
-  .topnav__search-toggle { display: inline-flex; }
+  .topnav .topnav__search-toggle { display: inline-flex; }
   .topnav__search {
     grid-row: 1; grid-column: 2;
     display: none; min-width: 0; max-width: none; padding: 8px 12px; width: 100%;

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { AppState } from "../useApp";
 import { Icon } from "./Icon";
 import { ThemeMode } from "../theme-mode";
@@ -15,6 +16,32 @@ export function TopNav({ p, theme, onToggleTheme }: {
   onToggleTheme: () => void;
 }) {
   const showSearch = p.page === "list" || p.page === "wordbook";
+  // 移动端搜索栏折叠为图标，点击展开；桌面端（CSS 控制）始终展开，此状态无效。
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // 展开时聚焦输入框
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  // 点击外部收拢（桌面端此监听无害：full 框一直可见）
+  useEffect(() => {
+    if (!searchOpen) return;
+    function onPointerDown(e: MouseEvent | TouchEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [searchOpen]);
+
   return (
     <header className="topnav">
       <button className="topnav__brand" onClick={() => p.setPage("landing")} aria-label="返回首页">
@@ -36,14 +63,43 @@ export function TopNav({ p, theme, onToggleTheme }: {
       <div className="topnav__spacer" />
 
       {showSearch && (
-        <div className="topnav__search">
-          <Icon name="search" size={16} />
-          <input
-            className="topnav__search-input"
-            placeholder={p.page === "list" ? "搜索视频、句子或单词" : "搜索生词"}
-            value={p.searchQuery}
-            onChange={(e) => p.setSearchQuery(e.target.value)}
-          />
+        <div className={`topnav__search-wrap ${searchOpen ? "is-open" : ""}`} ref={searchRef}>
+          <button
+            className="icon-btn icon-btn--plain topnav__search-toggle"
+            aria-label="搜索"
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen(true)}
+          >
+            <Icon name="search" size={18} />
+          </button>
+
+          <div className="topnav__search">
+            <Icon name="search" size={16} />
+            <input
+              ref={searchInputRef}
+              className="topnav__search-input"
+              placeholder={p.page === "list" ? "搜索视频、句子或单词" : "搜索生词"}
+              value={p.searchQuery}
+              onChange={(e) => p.setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
+            />
+            {p.searchQuery && (
+              <button
+                className="icon-btn icon-btn--plain topnav__search-clear"
+                aria-label="清除搜索"
+                onClick={() => p.setSearchQuery("")}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            )}
+            <button
+              className="icon-btn icon-btn--plain topnav__search-close"
+              aria-label="收起搜索"
+              onClick={() => setSearchOpen(false)}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </div>
         </div>
       )}
 
