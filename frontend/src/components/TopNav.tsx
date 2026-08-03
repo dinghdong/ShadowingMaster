@@ -97,7 +97,7 @@ export function TopNav({ p, theme, onToggleTheme }: {
               aria-label="收起搜索"
               onClick={() => setSearchOpen(false)}
             >
-              <Icon name="close" size={16} />
+              <Icon name="arrowLeft" size={18} />
             </button>
           </div>
         </div>
