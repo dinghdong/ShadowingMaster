@@ -86,6 +86,13 @@ def fetch(url: str) -> int:
         "outtmpl": str(MEDIA / "%(id)s.%(ext)s"),
         "retries": 10,
         "fragment_retries": 10,
+        # 住宅代理（台湾 HiNet2）对 googlevideo 大文件 TLS 流偶发重置（SSL UNEXPECTED_EOF）。
+        # force_ipv4：服务器无公网 IPv6，强制 v4 避免偶发 v6 边缘；
+        # http_chunk_size：把下载切成 10MB 分块 range 请求，单块被重置时仅需重传该块而非整文件；
+        # concurrent_fragments=1：顺序分片，减少代理隧道并发连接被掐。
+        "force_ipv4": True,
+        "http_chunk_size": 10 * 1024 * 1024,
+        "concurrent_fragments": 1,
         "quiet": False,
     }
     _apply_cookies(opts)
