@@ -52,10 +52,13 @@ test("跟读位置记忆：重进视频定位到上次学到的位置", async ({
   await page.locator(".video-card").first().click();
   await expect(page.locator("video")).toBeVisible();
   await expect(page.getByText("从头开始")).toBeVisible();
-  await freeze();
   await expectCurrent("#sent-2");
+  // 进页从「上次学到的位置」连续自动播放：播放头推进过第 3 句且未自停
+  // （回归：此前会播放完该句后句末自停，属 bug）
+  await expectCurrent("#sent-3", { timeout: 20000 });
+  await expect(page.locator("video")).toHaveJSProperty("paused", false);
   await page.getByText("从头开始").click();
-  // 点击后跳回第 1 句并播放，浮条消失
+  // 点击后跳回第 1 句并连续播放，浮条消失
   await expectCurrent("#sent-0");
   await expect(page.getByText("从头开始")).toHaveCount(0);
   // 连续播放：播放头推进到第 2 句且未自动暂停（验证不句末自停）

@@ -107,10 +107,10 @@ export function useVideos(deps: VideosDeps) {
           setResumeIndex(resumeIdx);
           setResumeDismissed(false);
           setCurrentIndex(idx);
-          // 默认定位到上次学到的位置并播放该句（单句播放后自停，不连续快进），
+          // 进页默认从「上次学到的位置」连续自动播放（不句末自停），
           // 句子列表随后自动滚到该句；"从头开始"浮条保留至用户点按/关闭
           const s = data.sentences[idx];
-          deps.setPendingPlay(s?.start_time ?? 0, s?.end_time ?? null);
+          deps.setPendingPlay(s?.start_time ?? 0, null);
           deps.tryStartPendingPlay();
         }
       });
