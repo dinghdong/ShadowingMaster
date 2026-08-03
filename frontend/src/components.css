@@ -1229,6 +1229,7 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   .practice__left .player-bar {
     position: static;
     margin: 0;
+    padding-bottom: 0;     /* 去掉标题区到下方 practice__divider 的间隙（默认 sp-2 来自移动端 player-bar） */
     flex-shrink: 0;
     background: transparent;
   }
