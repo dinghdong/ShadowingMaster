@@ -651,6 +651,7 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 /* —— 跟读句卡 —— */
 .sentence {
   position: relative;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -664,10 +665,27 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   border: 2px solid var(--primary);
   box-shadow: var(--shadow-sm);
 }
+/* 右侧大号浅灰艺术水印（与右侧句列同款 Font B 几何无衬线） */
+.sentence__wm {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--ff-wm);
+  font-size: 64px;
+  font-weight: var(--fw-heavy);
+  line-height: 1;
+  letter-spacing: -2px;
+  color: var(--wm-faint);
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+}
+/* 把字幕/底部操作栏抬到水印之上 */
+.sentence > *:not(.sentence__wm) { position: relative; z-index: 1; }
 .sentence__bar {
   display: flex; align-items: center; gap: 10px; margin-top: 6px;
 }
-.sentence__idx { font-size: var(--fs-tiny); color: var(--text-2); }
 .round-play {
   width: 26px; height: 26px; border-radius: 50%;
   border: 1px solid var(--border); background: var(--surface);

@@ -186,9 +186,9 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
 
   return (
     <div className="practice__panel sentence sentence--current" onClick={(e) => e.stopPropagation()}>
+      <span className="sentence__wm" aria-hidden="true">{idx + 1}</span>
       {body}
       <div className="sentence__bar">
-        <span className="sentence__idx">{idx + 1}</span>
         <button aria-label={`play-sentence-${idx}`} onClick={() => p.playSentenceAt(idx)} className="round-play"><Icon name="play" size={11} /></button>
         <div style={{ flex: 1 }} />
         {p.practiceMode === "dictation" && (
