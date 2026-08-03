@@ -126,12 +126,17 @@ export function usePlayer(deps: PlayerDeps) {
       v.pause();
       return;
     }
-    // 连续播放：当前句高亮跟随播放头（seek 进行中 v.seeking=true、t 不可信，跳过滚动避免抖动）
+    // 连续播放：当前句高亮跟随播放头
     const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
     if (idx >= 0 && idx !== currentIndex) {
+      // 1) seek 进行中：t 不可信，整段跳过（既防高亮乱跳也防抖动）
+      if (v.seeking) return;
+      // 2) seek 刚结束的边界误判：浏览器回报的 t 略小于 start_T（浮点），被严格 <end 归到上一句，
+      //    表现为 idx === currentIndex-1。此时 currentIndex 已是目标句，跳过即可，避免滚回上一句抖动。
+      if (idx === currentIndex - 1) return;
       setCurrentIndex(idx);
       reportPosition(idx);
-      if (!v.seeking) requestAnimationFrame(() => scrollToSentence(idx));
+      requestAnimationFrame(() => scrollToSentence(idx));
     }
   };
 
