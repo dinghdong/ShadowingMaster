@@ -957,21 +957,53 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 }
 .skeleton-thumb { width: 100%; aspect-ratio: 16/9; border-radius: var(--r-md); }
 
-/* 跟读页双栏骨架（形状贴合真实 .practice 两栏，避免布局跳动） */
+/* 跟读页加载骨架：结构严格对齐真实 .practice（页头 + 模式控件 + 视频 + 句列），消除布局跳动 */
 .practice-skeleton {
   display: grid; gap: var(--sp-6);
   grid-template-columns: 1fr;
   max-width: 1240px; margin: 0 auto;
   padding: var(--sp-6) clamp(var(--sp-4), 4vw, var(--sp-7));
+  align-items: start;
 }
 .practice-skeleton__left {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: var(--sp-4);
   display: flex; flex-direction: column; gap: var(--sp-3);
+  box-shadow: var(--shadow-card);
 }
-.practice-skeleton__player { aspect-ratio: 16/9; border-radius: var(--r-md); }
+/* 模式分段控件占位（对齐真实 .practice__modebar 三控件） */
+.practice__modebar { display: flex; gap: 6px; }
+.practice-skeleton__seg { height: 34px; flex: 1; border-radius: var(--r-pill); }
+/* 视频占位：中心品牌 spinner + 进度感；.skeleton 提供流光底，overlay 压在上方 */
+.practice-skeleton__player {
+  position: relative; aspect-ratio: 16/9; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.practice-skeleton__overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-2); padding: var(--sp-4);
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+}
+.practice-skeleton__hint { font-size: var(--fs-secondary); color: var(--text-2); }
+/* 不确定进度条（加载期间给「进行中」的连续反馈） */
+.practice-skeleton__bar {
+  width: 60%; max-width: 280px; height: 6px; border-radius: 999px;
+  background: var(--surface-3); overflow: hidden; position: relative;
+}
+.practice-skeleton__bar > i {
+  position: absolute; top: 0; left: 0; height: 100%; width: 40%;
+  background: var(--primary); border-radius: 999px;
+  animation: sk-indeterminate 1.2s var(--ease) infinite;
+}
+@keyframes sk-indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
 .practice-skeleton__right { display: flex; flex-direction: column; gap: 10px; }
 .practice-skeleton__row { height: 56px; border-radius: var(--r-md); }
+/* 操作图标占位圆（对齐页头右侧生词本/设置两颗） */
+.skeleton-circle { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
 @media (min-width: 900px) { .practice-skeleton { grid-template-columns: 1fr 1fr; } }
 
 /* 进度条（添加视频页） */

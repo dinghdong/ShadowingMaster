@@ -19,24 +19,62 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
   const p = app;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // 进页加载视频句子时：展示双栏骨架占位，消除「句子为空 → 整页白屏」的最严重缺口
+  // 进页加载视频句子时：骨架屏严格对齐真实 .practice 结构（页头 + 模式控件 + 视频 + 句列），
+  // 标题直接显示真实文案、spinner 居中于视频框内并带句数提示 + 不确定进度条，消除布局跳动与「底部孤零零转圈」。
   if (p.playerLoading) {
+    const title = p.currentVideo?.title;
+    const count = p.currentVideo?.sentence_count;
     return (
       <div className="app practice">
         <div className="practice-skeleton">
           <div className="practice-skeleton__left">
-            <div className="practice-skeleton__player skeleton" />
-            <div className="skeleton-line skeleton" style={{ width: "55%" }} />
-            <div className="skeleton-line skeleton" style={{ width: "38%" }} />
+            {/* 页面标题区：结构对齐真实页头，PC 与真实页一致；移动端不显示（真实页走 navbar--keep） */}
+            {!isMobile && (
+              <div className="practice__page-header">
+                <span className="practice__back" aria-hidden="true">
+                  <Icon name="arrowLeft" size={18} />
+                </span>
+                <h1 className="practice__title">
+                  {title ? (
+                    title
+                  ) : (
+                    <span
+                      className="skeleton"
+                      style={{ display: "inline-block", width: "55%", height: 18, borderRadius: "var(--r-sm)" }}
+                    />
+                  )}
+                </h1>
+                <span className="practice__actions" aria-hidden="true">
+                  <span className="skeleton skeleton-circle" />
+                  <span className="skeleton skeleton-circle" />
+                </span>
+              </div>
+            )}
+            {/* 模式分段控件占位（对齐真实 .practice__modebar 三控件） */}
+            <div className="practice__modebar" aria-hidden="true">
+              <span className="skeleton practice-skeleton__seg" />
+              <span className="skeleton practice-skeleton__seg" />
+              <span className="skeleton practice-skeleton__seg" />
+            </div>
+            {/* 视频占位：中心品牌 spinner + 句数提示 + 不确定进度条 */}
+            <div className="practice-skeleton__player skeleton">
+              <div className="practice-skeleton__overlay">
+                <Spinner size="lg" />
+                <span className="practice-skeleton__hint">
+                  {count ? `正在准备 ${count} 个句子…` : "加载中…"}
+                </span>
+                <span className="practice-skeleton__bar">
+                  <i />
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="practice-skeleton__right">
-            {Array.from({ length: 6 }).map((_, i) => (
+          {/* 右侧句列占位 */}
+          <div className="practice-skeleton__right" aria-hidden="true">
+            {Array.from({ length: 7 }).map((_, i) => (
               <div key={i} className="practice-skeleton__row skeleton" />
             ))}
           </div>
-        </div>
-        <div style={{ textAlign: "center", marginTop: "var(--sp-4)" }}>
-          <Spinner size="sm" label="加载中…" />
         </div>
       </div>
     );
