@@ -665,7 +665,14 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   border: 2px solid var(--primary);
   box-shadow: var(--shadow-sm);
 }
-/* 右侧大号浅灰艺术水印（与右侧句列同款 Font B 几何无衬线） */
+/* 字幕容器：包住"英文+中文"两个 div，给水印提供定位锚点。
+   isolation: isolate 让水印的 z-index:-1 只在容器内下沉，不会穿透到卡片背景之后。 */
+.sentence__subtitle {
+  position: relative;
+  isolation: isolate;
+}
+/* 右侧大号浅灰艺术水印（与右侧句列同款 Font B 几何无衬线）
+   垂直居中于 .sentence__subtitle（自然高度=英文+中文两 div 之总高度） */
 .sentence__wm {
   position: absolute;
   right: 8px;
@@ -677,12 +684,10 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   line-height: 1;
   letter-spacing: -2px;
   color: var(--wm-faint);
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   user-select: none;
 }
-/* 把字幕/底部操作栏抬到水印之上 */
-.sentence > *:not(.sentence__wm) { position: relative; z-index: 1; }
 .sentence__bar {
   display: flex; align-items: center; gap: 10px; margin-top: 6px;
 }

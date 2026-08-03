@@ -52,8 +52,11 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
   const showEnglish = p.subtitleMode === "english" || p.subtitleMode === "both";
   const showChinese = !!s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both");
 
+  // 用 .sentence__subtitle 容器包住"英文+中文"两个 div，
+  // 让水印 span 以该容器为定位锚点，自然高度来自文字，top:50% 即字幕区垂直中点。
   const subtitleBlock = (
-    <>
+    <div className="sentence__subtitle">
+      <span className="sentence__wm" aria-hidden="true">{idx + 1}</span>
       {showEnglish && (
         <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)", marginBottom: s.chinese_text && showChinese ? 6 : 0 }}>
           {renderEnglish(highlightCurrent)}
@@ -62,16 +65,17 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
       {showChinese && (
         <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", lineHeight: "var(--lh-body)" }}>{s.chinese_text}</div>
       )}
-    </>
+    </div>
   );
 
   const fullSubtitle = (
-    <>
+    <div className="sentence__subtitle">
+      <span className="sentence__wm" aria-hidden="true">{idx + 1}</span>
       <div style={{ fontSize: "var(--fs-sentence)", color: "var(--text)", lineHeight: "var(--lh-sentence)", marginBottom: s.chinese_text && showChinese ? 6 : 0 }}>
         {renderEnglish(highlightCurrent)}
       </div>
       {s.chinese_text && showChinese && <div style={{ fontSize: "var(--fs-secondary)", color: "var(--text-2)", lineHeight: "var(--lh-body)" }}>{s.chinese_text}</div>}
-    </>
+    </div>
   );
 
   let body: React.ReactNode = null;
@@ -184,9 +188,13 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
     );
   }
 
+  // 是否走字幕分支（view/shadow 用 subtitleBlock/fullSubtitle，watermark 内嵌字幕容器）
+  // dictation/cloze 走 textarea/inputs，把 watermark 放在卡片根（沿用旧的卡片居中）
+  const inSubtitleMode = p.practiceMode === "view" || p.practiceMode === "shadow";
+
   return (
     <div className="practice__panel sentence sentence--current" onClick={(e) => e.stopPropagation()}>
-      <span className="sentence__wm" aria-hidden="true">{idx + 1}</span>
+      {!inSubtitleMode && <span className="sentence__wm" aria-hidden="true">{idx + 1}</span>}
       {body}
       <div className="sentence__bar">
         <button aria-label={`play-sentence-${idx}`} onClick={() => p.playSentenceAt(idx)} className="round-play"><Icon name="play" size={11} /></button>
