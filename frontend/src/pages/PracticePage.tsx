@@ -242,7 +242,6 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
                 }}
                 onPlay={() => p.setIsPlaying(true)}
                 onPause={() => p.setIsPlaying(false)}
-                onSeeked={() => p.clearSeeking()}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
                   p.handleTimeUpdate(v.currentTime, v.paused);

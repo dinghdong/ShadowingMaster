@@ -113,7 +113,6 @@ export function useApp() {
   return {
     page: routing.page, setPage: routing.setPage, goLogin: routing.goLogin,
     user: auth.user, videos: videos.videos, loading: videos.loading,
-    playerLoading: videos.playerLoading, submitting: auth.submitting, wordbookLoading: wordBook.loading,
     progressList: videos.progressList, progressMap: videos.progressMap,
     currentVideoId: routing.currentVideoId, currentVideo: videos.currentVideo, sentences: videos.sentences, currentIndex: videos.currentIndex, goSentence: videos.goSentence,
     resumeIndex: videos.resumeIndex, resumeDismissed: videos.resumeDismissed, jumpToStart: videos.jumpToStart, dismissStart: videos.dismissStart,
@@ -127,7 +126,7 @@ export function useApp() {
     handleWordClick: wordBook.handleWordClick, addToWordBook: wordBook.addToWordBook, closeWord: wordBook.closeWord, speakWord: wordBook.speakWord, openWordDetail: wordBook.openWordDetail,
     videoRef: player.videoRef, playEndRef: player.playEndRef, loopSingleRef: player.loopSingleRef, suppressLoopRef: player.suppressLoopRef,
     loopSingle: player.loopSingle, setLoopSingle: player.setLoopSingle, rate: player.rate, cycleRate: player.cycleRate, setRate: player.setRate, RATES: player.RATES, playFrom: player.playFrom, playSentenceAt: player.playSentenceAt,
-    isPlaying: player.isPlaying, setIsPlaying: player.setIsPlaying, togglePlay: player.togglePlay, jumpToSentence: player.jumpToSentence, onVideoLoaded: player.onVideoLoaded, handleTimeUpdate: player.handleTimeUpdate, clearSeeking: player.clearSeeking,
+    isPlaying: player.isPlaying, setIsPlaying: player.setIsPlaying, togglePlay: player.togglePlay, jumpToSentence: player.jumpToSentence, onVideoLoaded: player.onVideoLoaded, handleTimeUpdate: player.handleTimeUpdate,
     practiceMode: exercises.practiceMode, setPracticeMode: exercises.setPracticeMode,
     playhead: player.playhead, subtitleHidden: exercises.subtitleHidden, revealIntensive: exercises.revealIntensive,
     dictationTexts: exercises.dictationTexts, setDictationText: exercises.setDictationText, dictationChecked: exercises.dictationChecked, checkDictation: exercises.checkDictation, redoDictation: exercises.redoDictation,

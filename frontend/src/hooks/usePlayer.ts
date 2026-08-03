@@ -26,7 +26,6 @@ export function usePlayer(deps: PlayerDeps) {
   const playEndRef = useRef<number | null>(null);     // 单句播放的自动停点；null = 连续播放
   const suppressLoopRef = useRef(false);              // 跟读录音期间抑制单句循环
   const pendingPlayRef = useRef<{ start: number; end: number | null } | null>(null); // 进页后待自动播放的片段（位置记忆/跳原句：起点+止点，止点=null 为连续）
-  const isSeekingRef = useRef(false);            // 浏览器 seek 进行中：此时 timeupdate 的 t 不可信，禁自动跟随
   const [isPlaying, setIsPlaying] = useState(false);
   const [loopSingle, setLoopSingle] = useState(false);
   const loopSingleRef = useRef(false);
@@ -45,7 +44,6 @@ export function usePlayer(deps: PlayerDeps) {
   const playFrom = (start: number, end: number) => {
     const v = videoRef.current;
     if (!v) return;
-    isSeekingRef.current = true; // 标记 seek 进行中，抑制不可信 timeupdate 回写 currentIndex
     v.currentTime = start;
     playEndRef.current = end;
     v.play().catch(() => {});
@@ -82,7 +80,6 @@ export function usePlayer(deps: PlayerDeps) {
     const v = videoRef.current;
     if (!v) return;
     playEndRef.current = isSingleSentenceMode(getPracticeMode()) ? s.end_time : null;
-    isSeekingRef.current = true; // 标记 seek 进行中，抑制不可信 timeupdate 回写 currentIndex
     v.currentTime = s.start_time;
     v.play().catch(() => {});
   };
@@ -95,7 +92,6 @@ export function usePlayer(deps: PlayerDeps) {
     pendingPlayRef.current = null;
     playEndRef.current = pending.end; // 有止点=单句播放后自停；null=连续
     v.playbackRate = rate;
-    isSeekingRef.current = true; // 标记 seek 进行中，抑制不可信 timeupdate 回写 currentIndex
     v.currentTime = pending.start;
     v.play().catch(() => {});
   };
@@ -107,8 +103,6 @@ export function usePlayer(deps: PlayerDeps) {
   const handleTimeUpdate = (t: number, paused: boolean) => {
     const v = videoRef.current;
     setPlayhead(t);
-    // seek 已完成（视频不再 seeking）则解除抑制，恢复正常跟随
-    if (isSeekingRef.current && v && !v.seeking) isSeekingRef.current = false;
     if (!v || paused) return;
     const end = playEndRef.current;
     if (end != null && t >= end) {
@@ -131,14 +125,9 @@ export function usePlayer(deps: PlayerDeps) {
       v.pause();
       return;
     }
-    // 连续播放：当前句高亮跟随播放头（seek 进行中 t 不可信，禁跟随，避免边界回退到上一句造成抖动）
-    if (isSeekingRef.current || (v && v.seeking)) {
-      if ((window as any).__SMDBG) console.log(`[SM:tu-skip] seeking t=${t.toFixed(2)} cur=${currentIndex}`);
-      return;
-    }
+    // 连续播放：当前句高亮跟随播放头
     const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
     if (idx >= 0 && idx !== currentIndex) {
-      if ((window as any).__SMDBG) console.log(`[SM:tu] t=${t.toFixed(2)} computed=${idx} cur=${currentIndex} -> SET`);
       setCurrentIndex(idx);
       reportPosition(idx);
     }
@@ -151,6 +140,5 @@ export function usePlayer(deps: PlayerDeps) {
     loopSingle, setLoopSingle,
     RATES, rateIdx, rate, cycleRate, setRate,
     playFrom, playSentenceAt, togglePlay, jumpToSentence, tryStartPendingPlay, onVideoLoaded, handleTimeUpdate,
-    clearSeeking: () => { isSeekingRef.current = false; },
   };
 }
