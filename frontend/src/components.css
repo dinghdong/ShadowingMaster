@@ -43,51 +43,31 @@
 .navbar__lead { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; flex: 1; }
 .navbar__settings { flex-shrink: 0; }
 
-/* —— 跟读页 PC 顶部导航（方案 A） —— */
-/* 跟读页自带 56px 顶 nav，覆盖全局 --topnav-h(72px)，让左栏 sticky 偏移正确 */
-.app.practice { --topnav-h: 56px; }
-.playernav {
-  position: sticky; top: 0; z-index: var(--z-sticky);
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--sp-4); height: 56px; padding: 0 var(--sp-5);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: saturate(180%) blur(8px); -webkit-backdrop-filter: saturate(180%) blur(8px);
-  border-bottom: 1px solid var(--border-soft);
+/* —— 跟读页 PC 页面标题区（在左练习台顶部，与移动端 .navbar--keep 内 lead 互斥） —— */
+.practice__page-header {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 0 0 var(--sp-3); min-width: 0;
 }
-.playernav__left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
-.playernav__brand {
-  display: inline-flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer;
-  font-family: var(--ff); font-size: var(--fs-body); font-weight: var(--fw-heavy); color: var(--text); padding: 0;
-}
-.playernav__logo { border-radius: var(--r-sm); display: block; }
-.playernav__accent { color: var(--primary); }
-.playernav__sep { width: 1px; height: 22px; background: var(--border-soft); }
-.playernav__back {
+.practice__back {
   display: inline-flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer;
   font-family: var(--ff); font-size: var(--fs-secondary); font-weight: var(--fw-medium); color: var(--text-soft);
-  padding: 6px 8px; border-radius: var(--r-sm);
+  padding: 6px 8px; border-radius: var(--r-sm); flex-shrink: 0;
 }
-.playernav__back:hover { background: var(--surface-2); color: var(--text); }
-.playernav__title {
+.practice__back:hover { background: var(--surface-2); color: var(--text); }
+.practice__title {
+  flex: 1; min-width: 0; margin: 0;
   font-size: var(--fs-body); font-weight: var(--fw-semibold); color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.playernav__actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
-.playernav__avatar {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 50%;
-  background: var(--surface-2); color: var(--text); border: 1px solid var(--border-soft); cursor: pointer;
-}
-.playernav__avatar:hover { background: var(--primary-soft); color: var(--primary); }
 
-/* 桌面端：顶 nav 承载品牌/返回/标题/生词本/主题/用户；页面内 .navbar--keep 仅保留设置齿轮 */
+/* 桌面端：顶 nav 复用全局 TopNav；页面内 .navbar--keep 仅保留设置齿轮，lead(back/标题/生词本) 由 PC 页面标题区或移动端 .navbar--keep 各自承载 */
 @media (min-width: 900px) {
   .navbar__lead { display: none; }
   .navbar--keep { justify-content: flex-end; padding: var(--sp-2) 0; background: transparent; }
 }
-/* 移动端：隐藏 PC 顶 nav，沿用页面内部 .navbar--keep（back/标题/生词本/设置） */
-@media (max-width: 900px) {
-  .playernav { display: none; }
+/* 移动端：不显示 PC 专属页面标题区（沿用 .navbar--keep 内 lead） */
+@media (max-width: 899px) {
+  .practice__page-header { display: none; }
 }
 
 /* 顶部导航高度（供跟读页等 sticky 偏移参考，避免内容被顶栏遮挡） */
@@ -1231,7 +1211,7 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    max-height: calc(100vh - var(--sp-5) * 2);
+    max-height: calc(100vh - var(--sp-5) * 2 - var(--sp-4));
     overflow-y: auto;
     background: var(--surface);
     border: 1px solid var(--border);

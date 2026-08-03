@@ -45,6 +45,17 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
   return (
     <div className="app practice">
       <div className="practice__left">
+      {/* PC 端页面标题区：← 返回列表 + 视频标题（移动端由 .navbar--keep 内部 lead 提供，互斥显示） */}
+      {!isMobile && (
+        <div className="practice__page-header">
+          <button className="practice__back" onClick={() => p.setPage("list")} aria-label="返回视频列表">
+            <Icon name="arrowLeft" size={18} /> 返回列表
+          </button>
+          <h1 className="practice__title" title={p.currentVideo?.title}>
+            {p.currentVideo?.title || "跟读"}
+          </h1>
+        </div>
+      )}
       <div className="player-bar">
         <div className="navbar navbar--keep">
           <div className="navbar__lead">
