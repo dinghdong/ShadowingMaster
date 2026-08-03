@@ -761,7 +761,9 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   font-size: var(--fs-tiny);
   color: var(--text-2);
   line-height: var(--lh-sentence);
+  align-self: center;
 }
+.sentence-row--current .sentence-row__idx { align-self: flex-start; }
 .sentence-row__text { min-width: 0; flex: 1; }
 .sentence-row__en {
   font-size: var(--fs-secondary);
