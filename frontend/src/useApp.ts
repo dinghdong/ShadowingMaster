@@ -60,19 +60,6 @@ export function useApp() {
     setWordMatches: (v) => { recordingRef.current?.setWordMatches(v); },
   });
 
-  const wordBook = useWordBook({
-    page: routing.page,
-    user: auth.user,
-    setPage: routing.setPage,
-    showToast,
-    currentVideoId: routing.currentVideoId,
-    currentVideo: videos.currentVideo,
-    currentSentence: videos.currentSentence,
-    openVideo: routing.openVideo,
-    jumpTargetRef: routing.jumpTargetRef,
-  });
-  wordBookRef.current = wordBook;
-
   const player = usePlayer({
     sentences: videos.sentences,
     currentIndex: videos.currentIndex,
@@ -83,6 +70,20 @@ export function useApp() {
     getPracticeMode: () => exercisesRef.current!.practiceMode,
   });
   playerRef.current = player;
+
+  const wordBook = useWordBook({
+    page: routing.page,
+    user: auth.user,
+    setPage: routing.setPage,
+    showToast,
+    currentVideoId: routing.currentVideoId,
+    currentVideo: videos.currentVideo,
+    currentSentence: videos.currentSentence,
+    openVideo: routing.openVideo,
+    jumpTargetRef: routing.jumpTargetRef,
+    videoRef: player.videoRef,
+  });
+  wordBookRef.current = wordBook;
 
   const exercises = useExercises({
     currentSentence: videos.currentSentence,

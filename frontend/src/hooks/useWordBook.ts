@@ -14,6 +14,7 @@ export interface WordBookDeps {
   currentSentence: Sentence;
   openVideo: (id: number) => void;
   jumpTargetRef: { current: JumpTarget | null };
+  videoRef: { current: HTMLVideoElement | null };
 }
 
 /**
@@ -22,7 +23,7 @@ export interface WordBookDeps {
  * （见 useApp 的延迟绑定），此处只负责后续交互。
  */
 export function useWordBook(deps: WordBookDeps) {
-  const { page, user, setPage, showToast, currentVideoId, currentVideo, currentSentence, openVideo, jumpTargetRef } = deps;
+  const { page, user, setPage, showToast, currentVideoId, currentVideo, currentSentence, openVideo, jumpTargetRef, videoRef } = deps;
 
   const [wordBook, setWordBook] = useState<any[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -32,6 +33,8 @@ export function useWordBook(deps: WordBookDeps) {
   // 点词时锁定的来源句（句尾标点清理前的那一刻）。视频在弹窗打开期间会继续播放，
   // currentSentence 会推进到后句；这里固化点击瞬间所在的句，确保加入生词本存的是正确的 sentence_id。
   const [wordSentence, setWordSentence] = useState<{ id: number | null; index: number | null } | null>(null);
+  // 弹窗打开前视频是否在播：打开时暂停，关闭时仅当原本在播才恢复，避免打断用户手动暂停
+  const [wasPlaying, setWasPlaying] = useState(false);
   // 句子标注：收藏（sentence id 集合）/ 笔记（sentence id -> 内容）/ 当前打开的笔记编辑器
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -107,6 +110,10 @@ export function useWordBook(deps: WordBookDeps) {
     setSelectedWord(clean);
     // 锁定点词瞬间的来源句，避免弹窗打开期间视频继续播放导致 currentSentence 推进、sentence_id 变大
     setWordSentence(sentenceId != null ? { id: sentenceId, index: sentenceIndex ?? null } : null);
+    // 打开弹窗时暂停视频，方便阅读释义（关闭时若原本在播再恢复）
+    const playing = !!(videoRef.current && !videoRef.current.paused);
+    setWasPlaying(playing);
+    if (playing) videoRef.current?.pause();
     setWordDetail(null); // 进入加载态
     try {
       // 改走自家后端代理（/api/dictionary），规避浏览器直连 dictionaryapi.dev
@@ -140,7 +147,11 @@ export function useWordBook(deps: WordBookDeps) {
     }
   };
 
-  const closeWord = () => { setSelectedWord(null); setWordDetail(null); setWordPopupOrigin(null); setWordSentence(null); };
+  const closeWord = () => {
+    // 关闭弹窗时，若打开前视频在播则恢复播放
+    if (wasPlaying) { videoRef.current?.play().catch(() => {}); setWasPlaying(false); }
+    setSelectedWord(null); setWordDetail(null); setWordPopupOrigin(null); setWordSentence(null);
+  };
 
   const addToWordBook = async () => {
     if (!selectedWord) return;
