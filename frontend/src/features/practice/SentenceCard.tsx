@@ -41,7 +41,7 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
             cursor: "pointer",
             background: isActive ? "var(--primary-soft)" : "transparent",
             borderRadius: "var(--sp-1)",
-            padding: isActive ? "1px 3px" : 0,
+            padding: isActive ? "1px 0" : 0,
             textDecoration: isActive ? "underline" : "none",
             transition: "background 0.15s, color 0.15s",
           }}
