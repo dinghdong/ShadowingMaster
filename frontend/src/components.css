@@ -46,7 +46,7 @@
 /* —— 跟读页 PC 页面标题区（在左练习台顶部，与移动端 .navbar--keep 内 lead 互斥） —— */
 .practice__page-header {
   display: flex; align-items: center; gap: var(--sp-3);
-  padding: 0 0 var(--sp-3); min-width: 0;
+  padding: 0; margin: 0; min-width: 0;
 }
 .practice__back {
   display: inline-flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer;
