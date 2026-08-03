@@ -637,7 +637,6 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 }
 .practice__subtitle-toggle {
   display: inline-flex; align-items: center; gap: 5px;
-  margin-left: auto;
   padding: 5px 11px;
   border-radius: var(--r-pill);
   border: 1px solid var(--border);
