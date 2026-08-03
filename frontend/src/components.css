@@ -57,12 +57,19 @@
 .practice__title {
   flex: 1; min-width: 0; margin: 0;
   font-size: var(--fs-body); font-weight: var(--fw-semibold); color: var(--text);
+  text-align: center;            /* YouTube 风格：标题居中，与左/右操作对称 */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.practice__actions {
+  display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0;
+}
+.practice__settings { position: relative; }
 
 /* 桌面端：顶 nav 复用全局 TopNav；页面内 .navbar--keep 仅保留设置齿轮，lead(back/标题/生词本) 由 PC 页面标题区或移动端 .navbar--keep 各自承载 */
 @media (min-width: 900px) {
   .navbar__lead { display: none; }
+  /* PC 端设置齿轮已上移到 .practice__page-header，避免重复 */
+  .practice__left .navbar__settings { display: none; }
   .navbar--keep { justify-content: flex-end; padding: var(--sp-2) 0; background: transparent; }
 }
 /* 移动端：不显示 PC 专属页面标题区（沿用 .navbar--keep 内 lead） */
@@ -1237,8 +1244,14 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
     margin: var(--sp-3) 0;
   }
   .practice__left .player-frame {
-    width: 100%;
-    aspect-ratio: 16/9;
+    /* 跟随视频真实宽高比（JS 在 onLoadedMetadata 设置 --video-aspect），
+       fallback 16/9 兜底让首帧渲染不塌缩 */
+    aspect-ratio: var(--video-aspect, 16/9);
+    /* 横屏视频占满左栏宽度；竖屏视频按 viewport 高度反推宽度，
+       width = min(100%, max-height × aspect) 保证比例不被 object-fit:contain 压成细条 */
+    width: min(100%, calc((100vh - var(--topnav-h) - var(--sp-8) - 240px) * var(--video-aspect, 1.7777)));
+    max-height: calc(100vh - var(--topnav-h) - var(--sp-8) - 240px);
+    margin: 0 auto;
   }
   .practice__left .player-frame video {
     object-fit: contain;

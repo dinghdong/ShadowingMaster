@@ -45,7 +45,7 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
   return (
     <div className="app practice">
       <div className="practice__left">
-      {/* PC 端页面标题区：← 返回列表 + 视频标题（移动端由 .navbar--keep 内部 lead 提供，互斥显示） */}
+      {/* PC 端页面标题区：返回 + 居中标题 + 生词本/设置（移动端由 .navbar--keep 内部 lead 提供，互斥显示） */}
       {!isMobile && (
         <div className="practice__page-header">
           <button className="practice__back" onClick={() => p.setPage("list")} aria-label="返回视频列表">
@@ -54,6 +54,68 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
           <h1 className="practice__title" title={p.currentVideo?.title}>
             {p.currentVideo?.title || "跟读"}
           </h1>
+          <div className="practice__actions">
+            <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本">
+              <Icon name="book" size={18} />
+            </button>
+            <div className="practice__settings" style={{ position: "relative", zIndex: "var(--z-popover)" }}>
+              <button
+                aria-label="settings"
+                onClick={() => setSettingsOpen((o) => !o)}
+                className={`icon-btn ${settingsOpen ? "icon-btn--on" : ""}`}
+                title="偏好设置"
+              ><Icon name="gear" size={18} /></button>
+              {settingsOpen && (
+                <>
+                  <div aria-label="settings-backdrop" onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1200 }} />
+                  <div onClick={(e) => e.stopPropagation()} className="popover">
+                    <div className="section-label" style={{ marginBottom: "var(--sp-3)" }}>偏好设置</div>
+
+                    <div style={{ marginBottom: "var(--sp-3)" }}>
+                      <div className="setting-row__label" style={{ marginBottom: 6 }}>字幕显示</div>
+                      <div className="segmented">
+                        {(["both", "english", "chinese"] as const).map((mode) => (
+                          <button key={mode} onClick={() => p.setSubtitleMode(mode)}
+                            className={`segmented__btn ${p.subtitleMode === mode ? "segmented__btn--active" : ""}`}>
+                            {mode === "both" ? "英中" : mode === "english" ? "英文" : "中文"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="setting-row">
+                      <span className="setting-row__label">逐词高亮</span>
+                      <button onClick={() => p.setWordHighlight(!p.wordHighlight)} aria-label="toggle-word-highlight"
+                        className={`toggle ${p.wordHighlight ? "toggle--on" : ""}`}>
+                        <span className="toggle__knob" />
+                      </button>
+                    </div>
+
+                    <div className="setting-row">
+                      <span className="setting-row__label">单句循环</span>
+                      <button onClick={() => p.setLoopSingle(!p.loopSingle)} aria-label="toggle-loop-single"
+                        className={`toggle ${p.loopSingle ? "toggle--on" : ""}`}>
+                        <span className="toggle__knob" />
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: "var(--sp-3)" }}>
+                      <div className="setting-row__label" style={{ marginBottom: 6 }}>播放速度</div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {p.RATES.map((r) => (
+                          <button key={r} onClick={() => p.setRate(r)}
+                            className={`btn btn--sm ${p.rate === r ? "btn--primary" : "btn--outline"}`}
+                            style={{ flex: 1, padding: "7px 0" }}>{r}x</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="meta" style={{ marginTop: "var(--sp-3)", opacity: 0.8 }}>设置已自动保存</div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
       <div className="player-bar">
@@ -131,7 +193,15 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
                 playsInline
                 style={{ width: "100%", height: "100%", objectFit: "contain" }}
                 onClick={p.togglePlay}
-                onLoadedMetadata={p.onVideoLoaded}
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  // 跟随视频真实宽高比：横屏/竖屏/方屏都自然适配，不再被 16:9 容器压窄
+                  const w = v.videoWidth || 16;
+                  const h = v.videoHeight || 9;
+                  const frame = v.closest(".player-frame") as HTMLElement | null;
+                  if (frame) frame.style.setProperty("--video-aspect", String(w / h));
+                  p.onVideoLoaded();
+                }}
                 onPlay={() => p.setIsPlaying(true)}
                 onPause={() => p.setIsPlaying(false)}
                 onTimeUpdate={(e) => {
