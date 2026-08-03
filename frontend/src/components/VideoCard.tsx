@@ -1,5 +1,5 @@
-import { mediaUrl } from "../shared";
 import { Icon } from "./Icon";
+import { VideoThumb } from "./VideoThumb";
 
 // ─── 视频卡片（与视频列表页一致）───
 export function VideoCard({
@@ -22,7 +22,7 @@ export function VideoCard({
   return (
     <div onClick={onClick} className="video-card fade-up" style={{ marginBottom: 0 }}>
       <div className="video-card__thumb">
-        {video.thumbnail_url ? <img src={mediaUrl(video.thumbnail_url)} alt="" /> : <Icon name="film" size={28} />}
+        <VideoThumb video={video} placeholderIcon="film" />
         <span className="video-card__duration">{durationMin}:{durationSec}</span>
         {lastSentenceIndex != null && total > 0 && (
           <div className="video-card__progress">

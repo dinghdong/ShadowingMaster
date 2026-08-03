@@ -1,10 +1,56 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
 import { VideoCard } from "../components/VideoCard";
+import { VideoThumb } from "../components/VideoThumb";
 
 type Filter = "all" | "learning" | "done";
 type Sort = "recent" | "newest" | "duration";
+
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "recent", label: "最近学习" },
+  { value: "newest", label: "最新添加" },
+  { value: "duration", label: "时长" },
+];
+
+function SortDropdown({ value, onChange }: { value: Sort; onChange: (s: Sort) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const current = SORT_OPTIONS.find((o) => o.value === value)!;
+
+  return (
+    <div className="sort-dropdown" ref={ref}>
+      <button className="sort-dropdown__trigger" onClick={() => setOpen((v) => !v)} aria-label="排序方式">
+        <Icon name="sort" size={15} />
+        <span>{current.label}</span>
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={12} />
+      </button>
+      {open && (
+        <div className="sort-dropdown__menu">
+          {SORT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              className={`sort-dropdown__item ${opt.value === value ? "sort-dropdown__item--active" : ""}`}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── 视频列表页（顶部导航由 DesktopShell 统一提供）───
 export default function VideoListPage({ app }: { app: AppState }) {
@@ -52,7 +98,7 @@ export default function VideoListPage({ app }: { app: AppState }) {
 
         {cont && (
           <div className="continue-card">
-            <div className="continue-card__thumb"><Icon name="play" size={28} /></div>
+            <div className="continue-card__thumb"><VideoThumb video={cont.v} placeholderIcon="play" /></div>
             <div className="continue-card__body">
               <div className="continue-card__kicker">继续学习</div>
               <div className="continue-card__title">{cont.v.title}</div>
@@ -67,16 +113,11 @@ export default function VideoListPage({ app }: { app: AppState }) {
 
         <div className="filter-bar">
           <div className="filter-chips">
-            <button className={`chip ${filter === "all" && sort !== "newest" ? "chip--active" : ""}`} onClick={() => setFilter("all")}>全部</button>
+            <button className={`chip ${filter === "all" ? "chip--active" : ""}`} onClick={() => setFilter("all")}>全部</button>
             <button className={`chip ${filter === "learning" ? "chip--active" : ""}`} onClick={() => setFilter("learning")}>在学中</button>
             <button className={`chip ${filter === "done" ? "chip--active" : ""}`} onClick={() => setFilter("done")}>已完成</button>
-            <button className={`chip ${sort === "newest" ? "chip--active" : ""}`} onClick={() => { setSort("newest"); setFilter("all"); }}>最近添加</button>
           </div>
-          <select className="filter-sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="排序方式">
-            <option value="recent">最近学习</option>
-            <option value="newest">最新添加</option>
-            <option value="duration">时长</option>
-          </select>
+          <SortDropdown value={sort} onChange={setSort} />
         </div>
 
         {items.length === 0 ? (

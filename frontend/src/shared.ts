@@ -30,6 +30,16 @@ export function mediaUrl(u: string | null | undefined): string {
   return u.startsWith("/") ? `${API_BASE}${u}` : u;
 }
 
+/**
+ * YouTube 公开缩略图兜底 URL（零 API key / 零鉴权）：ytimg CDN 对每个视频提供
+ * hqdefault(480x360) / sddefault(640x480) / maxresdefault(1280x720) 三档，均 200。
+ * 用途：当 video.thumbnail_url 为空（历史/手动添加视频）或 OSS 签名过期/桶缺文件时，
+ * 前端自动回退到这里，保证「继续学习」与视频网格卡永远有封面、不再裸灰。
+ */
+export function ytThumb(youtubeId: string | undefined | null, quality = "hqdefault"): string {
+  return `https://i.ytimg.com/vi/${youtubeId || ""}/${quality}.jpg`;
+}
+
 import EXAM_TARGET_JSON from "./data/exam-words.target.json";
 
 /**
