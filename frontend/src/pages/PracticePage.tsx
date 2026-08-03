@@ -93,9 +93,6 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
             {p.currentVideo?.title || "跟读"}
           </h1>
           <div className="practice__actions">
-            <button className="icon-btn" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本">
-              <Icon name="book" size={18} />
-            </button>
             <div className="practice__settings" style={{ position: "relative", zIndex: "var(--z-popover)" }}>
               <button
                 aria-label="settings"
@@ -161,7 +158,6 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
           <div className="navbar__lead">
             <button className="icon-btn icon-btn--plain navbar__back" onClick={() => p.setPage("list")} aria-label="返回"><Icon name="arrowLeft" size={22} /></button>
             <div className="navbar__title" style={{ fontSize: "calc(var(--fs-body) - 1px)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.currentVideo?.title || "跟读"}</div>
-            <button className="icon-btn navbar__wordbook" onClick={() => p.setPage("wordbook")} title="生词本" aria-label="生词本"><Icon name="book" size={18} /></button>
           </div>
           <div className="navbar__settings" style={{ position: "relative", zIndex: "var(--z-popover)" }}>
             <button

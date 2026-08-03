@@ -200,6 +200,14 @@ export function useVideos(deps: VideosDeps) {
   };
   const dismissStart = () => setResumeDismissed(true);
 
+  // 「从头开始」浮条自动消失：一旦用户离开上次学到的句位（连续播放自动推进 / 点下一句 / 手动跳转），
+  // 该提示即不再相关，自动隐藏；已显式点按过则保持隐藏，不会重现。
+  useEffect(() => {
+    if (resumeIndex != null && currentIndex !== resumeIndex) {
+      setResumeDismissed(true);
+    }
+  }, [currentIndex, resumeIndex]);
+
   // ── 提交 YouTube 链接 → 后端异步解析 + 轮询 ──
   const refreshVideos = async () => {
     try { const v: Video[] = await fetchVideos(); setVideos(v); } catch { /* 静默 */ }
