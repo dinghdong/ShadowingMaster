@@ -20,9 +20,9 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
     activeWord = Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
   }
 
-  let wi = -1;
-  const renderEnglish = (withHighlight: boolean) =>
-    tokens.map((t, i) => {
+  const renderEnglish = (withHighlight: boolean) => {
+    let wi = -1;
+    return tokens.map((t, i) => {
       if (t.space) return <span key={i}>{t.text}</span>;
       wi++;
       const isActive = withHighlight && wi === activeWord;
@@ -48,6 +48,7 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
         >{t.text}</span>
       );
     });
+  };
 
   const showEnglish = p.subtitleMode === "english" || p.subtitleMode === "both";
   const showChinese = !!s.chinese_text && (p.subtitleMode === "chinese" || p.subtitleMode === "both");

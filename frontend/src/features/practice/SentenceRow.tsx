@@ -18,9 +18,9 @@ export function SentenceRow({ p, s, idx }: { p: AppState; s: Sentence; idx: numb
     activeWord = Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
   }
 
-  let wi = -1;
   const renderEn = () => {
     if (!showKaraoke) return s.english_text;
+    let wi = -1;
     return tokens.map((t, i) => {
       if (t.space) return <span key={i}>{t.text}</span>;
       wi++;
