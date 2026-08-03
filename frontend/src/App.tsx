@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useApp } from "./useApp";
 import { getStoredTheme, toggleTheme, ThemeMode } from "./theme-mode";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { Spinner } from "./components/Spinner";
 import { DesktopShell } from "./components/DesktopShell";
+import { PlayerPageTopNav } from "./components/PlayerPageTopNav";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -21,7 +23,7 @@ export default function App() {
     if (app.videoRef.current) app.videoRef.current.playbackRate = app.rate;
   }, [app.rate, app.page, app.currentVideoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (app.loading) return <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><span className="meta">Loading…</span></div>;
+  if (app.loading) return <div className="app" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner size="lg" label="加载中…" center /></div>;
 
   if (app.page === "landing") return <LandingPage {...app} theme={theme} onToggleTheme={onToggleTheme} />;
 
@@ -39,6 +41,11 @@ export default function App() {
 
   if (app.page === "wordbook") return withShell(<WordBookPage app={app} />);
 
-  // 跟读页独占全屏：自带头部（← 标题 / 收藏 / 主题），不要再叠 DesktopShell 顶部导航
-  return <PracticePage app={app} isMobile={isMobile} />;
+  // 跟读页：PC 用 slim 顶 nav（PlayerPageTopNav，移动端 CSS 隐藏），不再叠 DesktopShell
+  return (
+    <>
+      <PlayerPageTopNav p={app} theme={theme} onToggleTheme={onToggleTheme} />
+      <PracticePage app={app} isMobile={isMobile} />
+    </>
+  );
 }
