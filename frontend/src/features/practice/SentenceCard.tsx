@@ -33,7 +33,7 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
       return (
         <span
           key={i}
-          onClick={(e) => { e.stopPropagation(); p.handleWordClick(t.text); }}
+          onClick={(e) => { e.stopPropagation(); p.handleWordClick(t.text, s.id, s.sentence_index); }}
           className={t.isHard ? "word-token word-token--hard" : "word-token"}
           style={{
             color,

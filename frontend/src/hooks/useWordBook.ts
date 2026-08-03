@@ -29,6 +29,9 @@ export function useWordBook(deps: WordBookDeps) {
   const [wordDetail, setWordDetail] = useState<WordDetail | null>(null);
   // 生词本弹窗的来源（点击生词本条目时记录），用于在弹窗中显示"回到原句"
   const [wordPopupOrigin, setWordPopupOrigin] = useState<{ videoId: number; sentenceId: number; definition?: string; definitionZh?: string } | null>(null);
+  // 点词时锁定的来源句（句尾标点清理前的那一刻）。视频在弹窗打开期间会继续播放，
+  // currentSentence 会推进到后句；这里固化点击瞬间所在的句，确保加入生词本存的是正确的 sentence_id。
+  const [wordSentence, setWordSentence] = useState<{ id: number | null; index: number | null } | null>(null);
   // 句子标注：收藏（sentence id 集合）/ 笔记（sentence id -> 内容）/ 当前打开的笔记编辑器
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -99,9 +102,11 @@ export function useWordBook(deps: WordBookDeps) {
   const openNote = (sentenceId: number) => setOpenNoteId(sentenceId);
   const closeNote = () => setOpenNoteId(null);
 
-  const handleWordClick = async (word: string) => {
+  const handleWordClick = async (word: string, sentenceId?: number | null, sentenceIndex?: number | null) => {
     const clean = cleanWordForLookup(word) || word;
     setSelectedWord(clean);
+    // 锁定点词瞬间的来源句，避免弹窗打开期间视频继续播放导致 currentSentence 推进、sentence_id 变大
+    setWordSentence(sentenceId != null ? { id: sentenceId, index: sentenceIndex ?? null } : null);
     setWordDetail(null); // 进入加载态
     try {
       // 改走自家后端代理（/api/dictionary），规避浏览器直连 dictionaryapi.dev
@@ -135,7 +140,7 @@ export function useWordBook(deps: WordBookDeps) {
     }
   };
 
-  const closeWord = () => { setSelectedWord(null); setWordDetail(null); setWordPopupOrigin(null); };
+  const closeWord = () => { setSelectedWord(null); setWordDetail(null); setWordPopupOrigin(null); setWordSentence(null); };
 
   const addToWordBook = async () => {
     if (!selectedWord) return;
@@ -149,6 +154,10 @@ export function useWordBook(deps: WordBookDeps) {
     const w = selectedWord;
     const first = wordDetail?.meanings?.[0];
     const def = first ? `${posLabel(first.partOfSpeech)} ${first.definition}` : "";
+    // 来源句：优先用点词瞬间锁定的句（弹窗打开期间视频仍在播放，currentSentence 会推进），
+    // 其次回退到弹窗来源（生词本页）或当前的 currentSentence，保证 sentence_id 始终是词真实所在的句。
+    const srcSentenceId = wordSentence?.id ?? wordPopupOrigin?.sentenceId ?? currentSentence?.id ?? null;
+    const srcSentenceIndex = wordSentence?.index ?? currentSentence?.sentence_index ?? null;
     try {
       const res: any = await addWord(w, {
         definition: def,
@@ -157,7 +166,7 @@ export function useWordBook(deps: WordBookDeps) {
         example: first?.example,
         exampleZh: first?.exampleZh,
         videoId: currentVideoId || undefined,
-        sentenceId: currentSentence?.id || undefined,
+        sentenceId: srcSentenceId || undefined,
       });
       // 乐观更新：立即把新词并入列表（含来源信息），生词本与角标实时刷新，
       // 不再依赖跳转到生词本页时的重新拉取（该拉取若失败会静默留空）
@@ -169,9 +178,9 @@ export function useWordBook(deps: WordBookDeps) {
         example: first?.example || null,
         example_zh: first?.exampleZh || null,
         video_id: currentVideoId || null,
-        sentence_id: currentSentence?.id || null,
+        sentence_id: srcSentenceId,
         video_title: currentVideo?.title || null,
-        sentence_index: currentSentence?.sentence_index ?? null,
+        sentence_index: srcSentenceIndex,
       };
       setWordBook((prev: any[]) => {
         if (prev.some((x) => x.word && x.word.toLowerCase() === w.toLowerCase())) return prev;
