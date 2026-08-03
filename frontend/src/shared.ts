@@ -77,6 +77,11 @@ export function isHardWord(word: string): boolean {
   return clean.length > 1 && inTargetWords(clean);
 }
 
+/** 去词首尾标点（用于点词弹窗/查词典），保留内部字母、数字与撇号，如 don't / co-operate。 */
+export function cleanWordForLookup(word: string): string {
+  return word.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+}
+
 export function tokenize(text: string) {
   const parts = text.split(/(\s+)/);
   return parts.map((part, i) => ({

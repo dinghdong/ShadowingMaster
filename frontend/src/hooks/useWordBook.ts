@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getWordBook, addWord, toggleFavorite, saveNote } from "../api";
-import { Page, Sentence, Video, WordDetail, WordMeaning, posLabel, translateEnToZh } from "../shared";
+import { Page, Sentence, Video, WordDetail, WordMeaning, posLabel, translateEnToZh, cleanWordForLookup } from "../shared";
 import { BASE } from "../api";
 import { JumpTarget } from "./useRouting";
 
@@ -100,12 +100,13 @@ export function useWordBook(deps: WordBookDeps) {
   const closeNote = () => setOpenNoteId(null);
 
   const handleWordClick = async (word: string) => {
-    setSelectedWord(word);
+    const clean = cleanWordForLookup(word) || word;
+    setSelectedWord(clean);
     setWordDetail(null); // 进入加载态
     try {
       // 改走自家后端代理（/api/dictionary），规避浏览器直连 dictionaryapi.dev
       // 在国内超时/被重置、且缺词返回 502 的问题。后端已规范化为 {found, phonetic, meanings}。
-      const res = await fetch(`${BASE}/api/dictionary?word=${encodeURIComponent(word.toLowerCase())}`);
+      const res = await fetch(`${BASE}/api/dictionary?word=${encodeURIComponent(clean.toLowerCase())}`);
       if (res.ok) {
         const data = await res.json();
         if (data.found) {
