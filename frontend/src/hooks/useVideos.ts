@@ -152,33 +152,35 @@ export function useVideos(deps: VideosDeps) {
   // 切句时清空各练习模式的临时输入（听写/挖空/精听揭示等）
   useEffect(() => { deps.resetSentenceState(); }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 滚动到指定句：保证整句完整落在可见区域，不被上方/侧边栏遮挡。
+  // 滚动到指定句：保证整句完整落在可见区域，不被上方吸顶栏/侧边栏遮挡。
   // 响应式布局差异：
-  //  · 移动端(<900px)：.practice__left 不吸顶、堆叠在句子上方 → 需扣除其高度作为顶部偏移；
-  //  · 桌面端(>=900px)：.practice__left 为 sticky 吸顶栏、位于左侧 → 不占纵向空间，偏移仅留 12px 间隙。
-  // 之前用 scrollIntoView({block:"center"}) 在移动端会把较高卡片顶部顶到视频栏覆盖区外，
-  // 导致"当前句只显示一部分"。
+  //  · 移动端(<900px)：.practice__left 为 display:contents（不吸顶），真正的吸顶元素只有 .player-bar
+  //    （sticky top:0，内含 导航栏 + 视频 + 分隔线）——它会盖住下方的句子，故偏移 = .player-bar 完整高度。
+  //  · 桌面端(>=900px)：.practice__left 为 sticky 吸顶栏且位于左侧、不占纵向空间，桌面端偏移仅留 12px 间隙并居中。
+  // 用 window.scrollTo 是因为移动端整页（.app.practice）即滚动容器，句列在普通文档流中。
   const scrollToSentence = (idx: number) => {
     const el = document.getElementById(`sent-${idx}`);
     if (!el) return;
     const bar = document.querySelector(".player-bar");
     const leftCol = document.querySelector(".practice__left");
-    const barOnTop = !leftCol || getComputedStyle(leftCol).position !== "sticky";
-    // 移动端顶部遮挡 = 吸顶顶栏 + 吸顶视频播放器（两者都是 sticky，会盖住句子）
-    let occluded = 0;
-    if (barOnTop && bar) {
-      occluded += bar.getBoundingClientRect().height;
-      const frame = document.querySelector(".player-frame");
-      if (frame && getComputedStyle(frame).position === "sticky") {
-        occluded += frame.getBoundingClientRect().height;
-      }
-    }
-    const offset = occluded ? occluded + 12 : 12;
+    // 移动端判定：左栏非 sticky（display:contents 计算 position=static）即视为移动端堆叠布局
+    const mobile = !leftCol || getComputedStyle(leftCol).position !== "sticky";
+    // 吸顶总高 = .player-bar 当前渲染高度（导航栏+视频+分隔线，由 sticky 实测，无需逐项累加）
+    const occluded = mobile && bar ? bar.getBoundingClientRect().height : 0;
     const rect = el.getBoundingClientRect();
-    const elTop = rect.top + window.scrollY;
+    const elTop = rect.top + window.scrollY; // 句卡在文档中的绝对顶部
+    if (mobile) {
+      // 移动端：当前句顶 = 紧贴吸顶栏（导航+视频）下方，留 8px 呼吸间隙。
+      // 滚动后句卡 top 相对视口 = occluded+gap，即正好落在视频底边之下。
+      const gap = 8;
+      const top = Math.max(0, elTop - (occluded + gap));
+      window.scrollTo({ top, behavior: "smooth" });
+      return;
+    }
+    // 桌面端：句卡顶部留 12px 间隙，再在剩余可用高度内尽量居中（过高卡片则贴顶，避免顶部被遮）
     const elHeight = rect.height;
+    const offset = 12;
     const avail = Math.max(160, window.innerHeight - offset);
-    // 句卡顶部留 offset 间隙，再在剩余可用高度内尽量居中（过高卡片则贴顶，避免顶部被遮）
     const top = Math.max(0, elTop - offset - Math.max(0, (avail - elHeight) / 2));
     window.scrollTo({ top, behavior: "smooth" });
   };
