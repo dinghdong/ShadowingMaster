@@ -35,6 +35,12 @@ export function usePlayer(deps: PlayerDeps) {
   useEffect(() => { loopSingleRef.current = loopSingle; }, [loopSingle]);
   // 切换到新视频（sentences 变化）时重新进入加载态，骨架屏重新出现
   useEffect(() => { setPlayerLoading(true); }, [sentences]);
+  // 兜底：若视频元数据在 <video> 挂载前已就绪（缓存/极快加载），onLoadedMetadata 可能错过，
+  // 故挂载后检查 readyState，已就绪(HAVE_METADATA)则直接解除 loading，避免卡在骨架屏。
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v && v.readyState >= 1) setPlayerLoading(false);
+  }, [sentences]);
   const RATES = [1, 0.75, 1.25];
   const [rateIdx, setRateIdx] = useState(() => { const i = Number(lsGet("sm.rateIdx", "0")); return Number.isFinite(i) && i >= 0 && i < RATES.length ? i : 0; });
   const rate = RATES[rateIdx];

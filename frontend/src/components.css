@@ -1040,6 +1040,12 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 /* 操作图标占位圆（对齐页头右侧生词本/设置两颗） */
 .skeleton-circle { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
 @media (min-width: 900px) { .practice-skeleton { grid-template-columns: 1fr 1fr; } }
+/* 加载覆盖层：视频元素始终挂载在下方（onLoadedMetadata 才能触发关闭 loading），
+   骨架屏以 fixed 全屏层盖在其上；主题背景保证深浅模式一致。 */
+.practice-loading-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg); overflow-y: auto;
+}
 
 /* 进度条（添加视频页） */
 .progress-track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
