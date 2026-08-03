@@ -736,7 +736,6 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   display: flex; flex-direction: column; gap: 10px;
 }
 .sentence-row {
-  position: relative; overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -751,31 +750,17 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   border: 2px solid var(--primary);
   box-shadow: var(--shadow-sm);
 }
-/* 左侧状态色条 */
-.sentence-row__bar {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--border-soft);
-}
-.sentence-row--read .sentence-row__bar { background: var(--success); }
-.sentence-row--current .sentence-row__bar { background: var(--primary); }
 .sentence-row__main {
   display: flex; align-items: flex-start; gap: var(--sp-2);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
-/* 圆形序号徽章：状态差异化 */
 .sentence-row__idx {
   flex-shrink: 0;
-  width: 22px; height: 22px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  font-size: var(--fs-tiny); font-weight: var(--fw-semibold);
+  min-width: 22px;
+  text-align: center;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
-}
-.sentence-row--read .sentence-row__idx { border-color: var(--success); color: var(--success); }
-.sentence-row--current .sentence-row__idx {
-  background: var(--primary); border-color: var(--primary); color: var(--on-primary);
+  padding-top: 2px;
 }
 .sentence-row__text { min-width: 0; flex: 1; }
 .sentence-row__en {
@@ -788,28 +773,11 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.sentence-row--read .sentence-row__en { color: var(--text-2); }
-.sentence-row--current .sentence-row__en { font-weight: var(--fw-semibold); }
 .sentence-row__cn {
   margin-top: 2px;
   font-size: var(--fs-meta);
   color: var(--text-2);
   line-height: var(--lh-body);
-}
-/* 单句播放按钮 + 底部时长/进度标签 */
-.sentence-row__play {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin-top: 1px;
-}
-.sentence-row__footer {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-left: calc(22px + var(--sp-2));
-}
-.sentence-row__time {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: var(--fs-tiny); color: var(--text-2);
-  font-variant-numeric: tabular-nums;
 }
 
 /* 进度小标签 */
