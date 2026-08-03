@@ -17,6 +17,8 @@ export interface AuthDeps {
 export function useAuth(deps: AuthDeps) {
   const [user, setUser] = useState<any>(null);
   const [error, setError] = useState("");
+  // 登录/注册提交态：请求期间禁用按钮 + 转圈，防止重复提交
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     getMe().then(setUser).catch(() => setUser(null));
@@ -41,17 +43,21 @@ export function useAuth(deps: AuthDeps) {
 
   const handleLogin = async (email: string, password: string) => {
     setError("");
+    setSubmitting(true);
     try { await login(email, password); setUser(await getMe()); deps.refreshWordBook(); afterAuth(); }
     catch (e: any) { setError(localizeError(e.message) || "登录失败"); }
+    finally { setSubmitting(false); }
   };
 
   const handleRegister = async (email: string, password: string) => {
     setError("");
+    setSubmitting(true);
     try { await register(email, password); await login(email, password); setUser(await getMe()); deps.refreshWordBook(); afterAuth(); }
     catch (e: any) { setError(localizeError(e.message) || "注册失败"); }
+    finally { setSubmitting(false); }
   };
 
   const handleLogout = () => { localStorage.removeItem("token"); setUser(null); deps.setPage("list"); };
 
-  return { user, error, handleLogin, handleRegister, handleLogout };
+  return { user, error, submitting, handleLogin, handleRegister, handleLogout };
 }

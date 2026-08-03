@@ -35,26 +35,51 @@ export default function ProfilePage({ app }: { app: AppState }) {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-5)" }}>
-            {stat("学习视频", records.length)}
-            {stat("学习句数", learnedSentences)}
-            {stat("生词", wordCount)}
-          </div>
-
-          <div className="section-label" style={{ marginBottom: "var(--sp-3)" }}>学习记录</div>
-          {records.length === 0 ? (
-            <div className="empty">还没有学习记录，去跟读一个视频吧</div>
+          {p.wordbookLoading ? (
+            // 加载态：统计卡 + 记录卡用骨架占位，避免「学习记录」空态闪现
+            <>
+              <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-5)" }}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="skeleton-card" style={{ flex: 1, alignItems: "center", textAlign: "center" }}>
+                    <div className="skeleton-line skeleton" style={{ width: "50%", height: 22, margin: "0 auto" }} />
+                    <div className="skeleton-line skeleton" style={{ width: "68%", margin: "0 auto" }} />
+                  </div>
+                ))}
+              </div>
+              <div className="section-label" style={{ marginBottom: "var(--sp-3)" }}>学习记录</div>
+              <div className="video-grid">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="skeleton-card">
+                    <div className="skeleton-thumb skeleton" />
+                    <div className="skeleton-line skeleton" style={{ width: "78%" }} />
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
-            <div className="video-grid">
-              {records.map((r: any) => (
-                <VideoCard
-                  key={r.video_id}
-                  video={r.video}
-                  lastSentenceIndex={r.last_sentence_index}
-                  onClick={() => p.openVideo(r.video_id)}
-                />
-              ))}
-            </div>
+            <>
+              <div style={{ display: "flex", gap: "var(--sp-3)", marginBottom: "var(--sp-5)" }}>
+                {stat("学习视频", records.length)}
+                {stat("学习句数", learnedSentences)}
+                {stat("生词", wordCount)}
+              </div>
+
+              <div className="section-label" style={{ marginBottom: "var(--sp-3)" }}>学习记录</div>
+              {records.length === 0 ? (
+                <div className="empty">还没有学习记录，去跟读一个视频吧</div>
+              ) : (
+                <div className="video-grid">
+                  {records.map((r: any) => (
+                    <VideoCard
+                      key={r.video_id}
+                      video={r.video}
+                      lastSentenceIndex={r.last_sentence_index}
+                      onClick={() => p.openVideo(r.video_id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           <div style={{ display: "flex", justifyContent: "center", marginTop: "var(--sp-6)" }}>

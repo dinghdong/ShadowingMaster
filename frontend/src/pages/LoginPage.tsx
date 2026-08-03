@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AppState } from "../useApp";
 import { Icon } from "../components/Icon";
+import { Spinner } from "../components/Spinner";
 import { ThemeMode } from "../theme-mode";
 
 // ─── 登录 / 注册页 ───
@@ -51,7 +52,9 @@ export default function LoginPage({ app, theme, onToggleTheme }: { app: AppState
           <input className="input" placeholder="密码（至少 8 位）" type="password" value={password}
             onChange={(e) => { setPassword(e.target.value); if (localErr) setLocalErr(""); }} />
           {shownErr && <div className="hint--box">{shownErr}</div>}
-          <button className="btn btn--primary btn--block" onClick={submit}>{mode === "login" ? "登 录" : "注 册"}</button>
+          <button className="btn btn--primary btn--block" disabled={p.submitting} onClick={submit}>
+            {p.submitting ? <><Spinner size="sm" /> {mode === "login" ? "登录中…" : "注册中…"}</> : (mode === "login" ? "登 录" : "注 册")}
+          </button>
           <button className="link-btn" style={{ width: "100%", justifyContent: "center", marginTop: "var(--sp-1)" }}
             onClick={() => p.setPage("list")}>先逛逛 →</button>
         </div>

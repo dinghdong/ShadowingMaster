@@ -1,5 +1,6 @@
 import { AppState } from "../useApp";
 import { Icon } from "./Icon";
+import { Spinner } from "./Spinner";
 import { posLabel } from "../shared";
 
 // 生词释义弹窗（跟读页 / 生词本共用）。
@@ -19,7 +20,7 @@ export function WordPopup({ p }: { p: AppState }) {
         </div>
 
         <div className="scroll-y" style={{ overflowY: "auto", marginBottom: "var(--sp-4)" }}>
-          {!p.wordDetail && <div className="hint">加载中…</div>}
+          {!p.wordDetail && <div style={{ padding: "var(--sp-3) 0" }}><Spinner size="sm" label="加载中…" /></div>}
           {p.wordDetail?.notFound && (
             <div className="hint">
               未找到在线释义。

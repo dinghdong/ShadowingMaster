@@ -74,7 +74,6 @@ export function TopNav({ p, theme, onToggleTheme }: {
           </button>
 
           <div className="topnav__search">
-            <Icon name="search" size={16} />
             <input
               ref={searchInputRef}
               className="topnav__search-input"

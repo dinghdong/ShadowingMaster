@@ -28,9 +28,13 @@ export function usePlayer(deps: PlayerDeps) {
   const suppressLoopRef = useRef(false);              // 跟读录音期间抑制单句循环
   const pendingPlayRef = useRef<{ start: number; end: number | null } | null>(null); // 进页后待自动播放的片段（位置记忆/跳原句：起点+止点，止点=null 为连续）
   const [isPlaying, setIsPlaying] = useState(false);
+  // 视频加载/切换骨架屏：进页或切视频时为 true，元数据就绪（onVideoLoaded）后置 false
+  const [playerLoading, setPlayerLoading] = useState(true);
   const [loopSingle, setLoopSingle] = useState(false);
   const loopSingleRef = useRef(false);
   useEffect(() => { loopSingleRef.current = loopSingle; }, [loopSingle]);
+  // 切换到新视频（sentences 变化）时重新进入加载态，骨架屏重新出现
+  useEffect(() => { setPlayerLoading(true); }, [sentences]);
   const RATES = [1, 0.75, 1.25];
   const [rateIdx, setRateIdx] = useState(() => { const i = Number(lsGet("sm.rateIdx", "0")); return Number.isFinite(i) && i >= 0 && i < RATES.length ? i : 0; });
   const rate = RATES[rateIdx];
@@ -98,7 +102,7 @@ export function usePlayer(deps: PlayerDeps) {
   };
 
   // 视频元数据就绪时尝试起播（覆盖"元数据后于数据就位"的情况）
-  const onVideoLoaded = () => tryStartPendingPlay();
+  const onVideoLoaded = () => { setPlayerLoading(false); tryStartPendingPlay(); };
 
   // 播放头驱动：单句自停/循环 + 高亮跟随 + 位置上报
   const handleTimeUpdate = (t: number, paused: boolean) => {
@@ -142,7 +146,7 @@ export function usePlayer(deps: PlayerDeps) {
 
   return {
     videoRef, playEndRef, loopSingleRef, suppressLoopRef, pendingPlayRef,
-    playhead, resetSentenceState,
+    playerLoading, playhead, resetSentenceState,
     isPlaying, setIsPlaying,
     loopSingle, setLoopSingle,
     RATES, rateIdx, rate, cycleRate, setRate,

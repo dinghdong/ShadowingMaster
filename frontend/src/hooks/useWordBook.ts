@@ -39,14 +39,19 @@ export function useWordBook(deps: WordBookDeps) {
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [openNoteId, setOpenNoteId] = useState<number | null>(null);
+  // 生词本拉取加载态：用于生词本/个人中心展示骨架，消除「还没收藏」空态闪现
+  const [loading, setLoading] = useState(false);
 
   // 重新拉取生词本（登录用户）；失败时给出可见提示，而非静默留空列表
   const refreshWordBook = async () => {
     if (!localStorage.getItem("token")) return;
+    setLoading(true);
     try {
       setWordBook(await getWordBook());
     } catch {
       showToast("生词本加载失败，请刷新重试");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -236,7 +241,7 @@ export function useWordBook(deps: WordBookDeps) {
   };
 
   return {
-    wordBook, refreshWordBook,
+    wordBook, refreshWordBook, loading,
     selectedWord, wordDetail, wordPopupOrigin, handleWordClick, addToWordBook, closeWord, speakWord, openWordOrigin, openWordDetail,
     favorites, setFavorites, notes, setNotes, openNoteId,
     toggleFav, saveNoteFor, copySentence, openNote, closeNote,
