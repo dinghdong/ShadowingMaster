@@ -665,33 +665,23 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   border: 2px solid var(--primary);
   box-shadow: var(--shadow-sm);
 }
-/* 右侧大号浅灰艺术水印（与右侧句列同款 Font B 几何无衬线）；
-   置于 .sentence__subtitle 内、span 自身填满容器高度，字号跟随容器等比缩放 */
+/* 右侧大号浅灰艺术水印（与右侧句列同款 Font B 几何无衬线） */
 .sentence__wm {
   position: absolute;
-  top: 0;
-  bottom: 0;
   right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  top: 50%;
+  transform: translateY(-50%);
   font-family: var(--ff-wm);
-  font-size: 90cqh;
+  font-size: 64px;
   font-weight: var(--fw-heavy);
   line-height: 1;
   letter-spacing: -2px;
   color: var(--wm-faint);
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   user-select: none;
 }
-/* 字幕容器：声明 container-type 以启用 cqh，让水印字号跟随容器高度 */
-.sentence__subtitle {
-  position: relative;
-  z-index: 1;
-  container-type: size;
-}
-/* 把字幕容器与底部操作栏抬到水印之上 */
+/* 把字幕/底部操作栏抬到水印之上 */
 .sentence > *:not(.sentence__wm) { position: relative; z-index: 1; }
 .sentence__bar {
   display: flex; align-items: center; gap: 10px; margin-top: 6px;
