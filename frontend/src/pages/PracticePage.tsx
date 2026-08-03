@@ -102,7 +102,7 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
                 onClick={() => setSettingsOpen((o) => !o)}
                 className={`icon-btn ${settingsOpen ? "icon-btn--on" : ""}`}
                 title="偏好设置"
-              ><Icon name="gear" size={18} /></button>
+              ><Icon name="sliders" size={18} /></button>
               {settingsOpen && (
                 <>
                   <div aria-label="settings-backdrop" onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1200 }} />
@@ -168,7 +168,7 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
               aria-label="settings"
               onClick={() => setSettingsOpen((o) => !o)}
               className={`icon-btn ${settingsOpen ? "icon-btn--on" : ""}`}
-            ><Icon name="gear" size={18} /></button>
+            ><Icon name="sliders" size={18} /></button>
             {settingsOpen && (
               <>
                 <div aria-label="settings-backdrop" onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1200 }} />

@@ -9,9 +9,10 @@ export type IconName =
   | "user" | "book" | "plus" | "lock" | "film" | "clock" | "lines"
   | "mic" | "stop" | "volume" | "trophy" | "chart" | "copy"
   | "star" | "starFill" | "note" | "eye" | "eyeOff"
-  | "play" | "pause" | "gear" | "close" | "redo" | "check"
+  | "play" | "pause" | "gear" | "sliders" | "close" | "redo" | "check"
   | "arrowLeft" | "arrowRight" | "reply" | "spinner" | "checkCircle"
-  | "sun" | "moon" | "target" | "logout" | "search";
+  | "sun" | "moon" | "target" | "logout" | "search"
+  | "sort" | "chevronDown" | "chevronUp";
 
 // 填充型图标（实心）
 const FILLED = new Set<IconName>(["play", "pause", "stop", "starFill"]);
@@ -124,6 +125,16 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8" />
     </>
   ),
+  sliders: (
+    <>
+      <path d="M4 6h10M18 6h2" />
+      <circle cx="16" cy="6" r="2" />
+      <path d="M4 12h6M14 12h6" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M4 18h2M10 18h10" />
+      <circle cx="8" cy="18" r="2" />
+    </>
+  ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
   redo: (
     <>
@@ -173,6 +184,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M21 21l-4.3-4.3" />
     </>
   ),
+  sort: (
+    <>
+      <path d="M3 6h13M3 12h9M3 18h5" />
+    </>
+  ),
+  chevronDown: <path d="M6 9l6 6 6-6" />,
+  chevronUp: <path d="M18 15l-6-6-6 6" />,
 };
 
 export function Icon({
