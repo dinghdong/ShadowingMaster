@@ -10,6 +10,7 @@ export interface PlayerDeps {
   setCurrentIndex: (idx: number) => void;
   goSentence: (idx: number) => void;
   reportPosition: (idx: number) => void;
+  scrollToSentence: (idx: number) => void;
   /** 当前练习模式（useExercises 在其后声明，由 useApp 延迟绑定；读取点均在渲染提交之后） */
   getPracticeMode: () => PracticeMode;
 }
@@ -19,7 +20,7 @@ export interface PlayerDeps {
  * 从原 useApp 原样搬出。
  */
 export function usePlayer(deps: PlayerDeps) {
-  const { sentences, currentIndex, currentSentence, setCurrentIndex, goSentence, reportPosition, getPracticeMode } = deps;
+  const { sentences, currentIndex, currentSentence, setCurrentIndex, goSentence, reportPosition, scrollToSentence, getPracticeMode } = deps;
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -125,11 +126,12 @@ export function usePlayer(deps: PlayerDeps) {
       v.pause();
       return;
     }
-    // 连续播放：当前句高亮跟随播放头
+    // 连续播放：当前句高亮跟随播放头（seek 进行中 v.seeking=true、t 不可信，跳过滚动避免抖动）
     const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
     if (idx >= 0 && idx !== currentIndex) {
       setCurrentIndex(idx);
       reportPosition(idx);
+      if (!v.seeking) requestAnimationFrame(() => scrollToSentence(idx));
     }
   };
 

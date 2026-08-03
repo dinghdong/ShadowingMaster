@@ -67,6 +67,7 @@ export function useApp() {
     setCurrentIndex: videos.setCurrentIndex,
     goSentence: videos.goSentence,
     reportPosition: videos.reportPosition,
+    scrollToSentence: videos.scrollToSentence,
     getPracticeMode: () => exercisesRef.current!.practiceMode,
   });
   playerRef.current = player;

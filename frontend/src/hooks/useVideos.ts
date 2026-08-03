@@ -107,6 +107,8 @@ export function useVideos(deps: VideosDeps) {
           setResumeIndex(resumeIdx);
           setResumeDismissed(false);
           setCurrentIndex(idx);
+          // 进页定位：列表自动滚到上次学到/生词本跳转的目标句（延到 DOM 提交后测量布局）
+          requestAnimationFrame(() => scrollToSentence(idx));
           // 进页默认从「上次学到的位置」连续自动播放（不句末自停），
           // 句子列表随后自动滚到该句；"从头开始"浮条保留至用户点按/关闭
           const s = data.sentences[idx];
@@ -147,6 +149,10 @@ export function useVideos(deps: VideosDeps) {
     deps.setWordMatches([]);
     deps.resetSentenceState();
     reportPosition(clamped);
+    // 仅在有意导航时滚动（点击/上一下一句/从头开始），不再监听 currentIndex 全局副作用，
+    // 避免 seek 期间 timeupdate 误写 currentIndex 触发多余滚动造成抖动。
+    // rAF 延到 React 提交 DOM 后，确保移动端展开当前行的布局已生效再测量位置。
+    requestAnimationFrame(() => scrollToSentence(clamped));
   };
 
   // 切句时清空各练习模式的临时输入（听写/挖空/精听揭示等）
@@ -185,15 +191,8 @@ export function useVideos(deps: VideosDeps) {
     window.scrollTo({ top, behavior: "smooth" });
   };
 
-  // 滚动到当前句：进页即定位到上次学到的位置（自动滚到该句），会话内切句保持顺滑
-  useEffect(() => {
-    if (page !== "player") return;
-    scrollToSentence(currentIndex);
-  }, [page, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const jumpToStart = () => {
     goSentence(0);
-    scrollToSentence(0);
     // 「从头开始」= 从第一句连续自动播放（不句末自停），符合整段跟读流
     deps.setPendingPlay(sentences[0]?.start_time ?? 0, null);
     deps.tryStartPendingPlay();
@@ -260,7 +259,7 @@ export function useVideos(deps: VideosDeps) {
     videos, loading,
     sentences, currentIndex, setCurrentIndex, currentSentence, currentVideo,
     resumeIndex, resumeDismissed, jumpToStart, dismissStart,
-    progressList, progressMap, reportPosition, goSentence,
+    progressList, progressMap, reportPosition, goSentence, scrollToSentence,
     parseInput, setParseInput, parseJob, parseError, submitVideoUrl,
   };
 }
