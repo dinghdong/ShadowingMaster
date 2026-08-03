@@ -756,19 +756,16 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 }
 .sentence-row__idx {
   flex-shrink: 0;
-  width: 22px;
-  text-align: right;
+  min-width: 22px;
+  text-align: center;
   font-size: var(--fs-tiny);
   color: var(--text-2);
-  line-height: var(--lh-sentence);
-  align-self: center;
+  padding-top: 2px;
 }
-.sentence-row--current .sentence-row__idx { align-self: flex-start; }
 .sentence-row__text { min-width: 0; flex: 1; }
 .sentence-row__en {
   font-size: var(--fs-secondary);
   color: var(--text);
-  font-weight: var(--fw-medium);
   line-height: var(--lh-sentence);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -779,7 +776,7 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 .sentence-row__cn {
   margin-top: 2px;
   font-size: var(--fs-meta);
-  color: var(--text-3);
+  color: var(--text-2);
   line-height: var(--lh-body);
 }
 
