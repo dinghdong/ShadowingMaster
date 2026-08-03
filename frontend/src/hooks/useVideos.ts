@@ -46,9 +46,6 @@ export function useVideos(deps: VideosDeps) {
   const [parseInput, setParseInput] = useState("");
   const [parseJob, setParseJob] = useState<{ job_id: number; status: string; video_id?: number; error?: string } | null>(null);
   const [parseError, setParseError] = useState("");
-  // 进页加载视频句子的加载态：进入 effect 置 true，句子 set 后 false；
-  // 用于跟读页展示双栏骨架，消除「句子为空 → 整页白屏」的最严重缺口。
-  const [playerLoading, setPlayerLoading] = useState(false);
   const parseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -65,7 +62,6 @@ export function useVideos(deps: VideosDeps) {
   useEffect(() => {
     if (currentVideoId && page === "player") {
       let cancelled = false;
-      setPlayerLoading(true);
       fetchVideo(currentVideoId).then(async (data: any) => {
         if (cancelled) return;
         setSentences(data.sentences);
@@ -116,13 +112,9 @@ export function useVideos(deps: VideosDeps) {
           const s = data.sentences[idx];
           deps.setPendingPlay(s?.start_time ?? 0, null);
           deps.tryStartPendingPlay();
-          setPlayerLoading(false);
         }
-      }).catch(() => { if (!cancelled) setPlayerLoading(false); });
+      });
       return () => { cancelled = true; };
-    } else {
-      // 非跟读页（如列表）保持 loading 关闭，避免骨架残留
-      setPlayerLoading(false);
     }
   }, [currentVideoId, page]);
 
@@ -186,11 +178,8 @@ export function useVideos(deps: VideosDeps) {
     const elTop = rect.top + window.scrollY;
     const elHeight = rect.height;
     const avail = Math.max(160, window.innerHeight - offset);
-    // 移动端(barOnTop)：当前句对齐到可见区顶部（紧贴吸顶栏下方），不居中，避免落在可视区底部
-    // 桌面端：句卡顶部留 offset 间隙，再在剩余可用高度内尽量居中（过高卡片则贴顶）
-    const top = barOnTop
-      ? Math.max(0, elTop - offset)
-      : Math.max(0, elTop - offset - Math.max(0, (avail - elHeight) / 2));
+    // 句卡顶部留 offset 间隙，再在剩余可用高度内尽量居中（过高卡片则贴顶，避免顶部被遮）
+    const top = Math.max(0, elTop - offset - Math.max(0, (avail - elHeight) / 2));
     window.scrollTo({ top, behavior: "smooth" });
   };
 
@@ -266,7 +255,7 @@ export function useVideos(deps: VideosDeps) {
   };
 
   return {
-    videos, loading, playerLoading,
+    videos, loading,
     sentences, currentIndex, setCurrentIndex, currentSentence, currentVideo,
     resumeIndex, resumeDismissed, jumpToStart, dismissStart,
     progressList, progressMap, reportPosition, goSentence,
