@@ -77,6 +77,7 @@ export function TopNav({ p, theme, onToggleTheme }: {
             <input
               ref={searchInputRef}
               className="topnav__search-input"
+              size={1}
               placeholder={p.page === "list" ? "搜索视频、句子或单词" : "搜索生词"}
               value={p.searchQuery}
               onChange={(e) => p.setSearchQuery(e.target.value)}
