@@ -43,7 +43,7 @@ export function TopNav({ p, theme, onToggleTheme }: {
   }, [searchOpen]);
 
   return (
-    <header className="topnav">
+    <header className={`topnav ${searchOpen ? "is-search-open" : ""}`}>
       <button className="topnav__brand" onClick={() => p.setPage("landing")} aria-label="返回首页">
         <img className="landing__brand-logo" src="/favicon.svg" alt="ShadowingMaster" width={28} height={28} />
         <span>Shadowing<span className="topnav__brand-accent">Master</span></span>
