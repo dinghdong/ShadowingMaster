@@ -1016,8 +1016,21 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   display: flex; flex-direction: column; gap: var(--sp-3);
   box-shadow: var(--shadow-card);
 }
+/* 移动端骨架屏：导航栏占位（对齐真实 .navbar--keep：返回 + 标题 + 设置） */
+.practice-skeleton__header {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-5) 0;
+  border-bottom: 1px solid var(--border);
+}
+.practice-skeleton__back { width: 28px; height: 28px; border-radius: var(--r-sm); flex-shrink: 0; }
+.practice-skeleton__title { flex: 1; height: 20px; border-radius: var(--r-sm); }
+
 /* 模式分段控件占位（对齐真实 .practice__modebar 三控件） */
 .practice__modebar { display: flex; gap: 6px; }
+/* 移动端：模式栏嵌在当前句展开面板内，骨架屏不需要单独的模式栏占位 */
+@media (max-width: 899px) {
+  .practice-skeleton .practice__modebar { display: none; }
+}
 .practice-skeleton__seg { height: 34px; flex: 1; border-radius: var(--r-pill); }
 /* 视频占位：中心品牌 spinner + 进度感；.skeleton 提供流光底，overlay 压在上方 */
 .practice-skeleton__player {
@@ -1045,13 +1058,13 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
   0% { transform: translateX(-120%); }
   100% { transform: translateX(320%); }
 }
-.practice-skeleton__right { display: flex; flex-direction: column; gap: 10px; }
-.practice-skeleton__row { height: 56px; border-radius: var(--r-md); }
+.practice-skeleton__right { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.practice-skeleton__row { height: 56px; border-radius: var(--r-md); width: 100%; }
 /* 操作图标占位圆（对齐页头右侧生词本/设置两颗） */
 .skeleton-circle { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
 @media (min-width: 900px) { .practice-skeleton { grid-template-columns: 1fr 1fr; } }
-/* 加载覆盖层：视频元素始终挂载在下方（onLoadedMetadata 才能触发关闭 loading），
-   骨架屏以 fixed 全屏层盖在其上；主题背景保证深浅模式一致。 */
+/* 加载覆盖层：fixed 全屏层，内部使用真实 Header+视频+文字提示（非骨架 grid），
+   移动端依赖 .practice 的 flex column 布局让句子区域填满剩余空间并居中 */
 .practice-loading-overlay {
   position: fixed; inset: 0; z-index: 200;
   background: var(--bg); overflow-y: auto;
@@ -1131,30 +1144,44 @@ textarea.input { resize: vertical; line-height: var(--lh-body); }
 .divider { height: 1px; background: var(--border); border: none; margin: var(--sp-3) 0; }
 
 /* ============================================================
-   移动端（< 900px）：跟读页 — 视频播放器吸顶固定
-   ============================================================ */
+   移动端（< 900px）：跟读页 — 视频固定 + 句子列表内部滚动
+   ============================================================
+   核心变更：不再依赖 window.scrollBy/scrollTo（在微信 WebView 等环境中会静默失效）。
+   改用 flex 列布局：.practice 填满视口(overflow:hidden)，
+   导航+视频自然停在顶部（flex 子项，不参与滚动），
+   .practice__right 为独立滚动容器（overflow-y:auto），通过 element.scrollTop 赋值滚动，
+   该 API 在所有 WebView（含微信）中均可靠。 */
 @media (max-width: 899px) {
   /* 让 .practice__left 的盒子消失，其内部（导航/视频/模式/当前句）
-     与右侧句子列表共同成为 .practice 的直接子级，
-     使视频的 sticky 包含块覆盖整页（含句子列表），
-     滚动句子列表时视频播放器保持固定在顶部 */
-  .practice { display: block; }
+     与右侧句子列表共同成为 .practice 的直接子级 */
+  .practice { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; padding-bottom: 0; }
   .practice__left { display: contents; }
   .practice__left > .page-pad { display: contents; }
 
-  /* 顶栏（返回 / 标题 / 设置）吸顶 */
-  .player-bar { top: 0; z-index: 30; }
+  /* 导航+视频区域（player-bar 及其展平子项）固定在 flex 容器顶部，不被压缩 */
+  .player-bar { flex-shrink: 0; z-index: 30; }
 
-  /* 视频播放器吸顶，紧贴导航下方；整页滚动时保持固定 */
+  /* 视频播放器：不再需要 sticky（父容器 overflow:hidden 无滚动祖先）；
+     box-shadow 保留作为视频区与句子列表的视觉分隔 */
   .player-frame {
-    position: sticky;
-    top: 72px;
-    z-index: 25;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   }
 
-  /* 句子列表顶部留白，避免首句被吸顶视频遮挡 */
-  .practice__right { padding-top: var(--sp-3); }
+  /* ── 句子列表容器 ──
+     flex:1 + min-height:0 让它填满导航/视频之后的剩余空间。
+     实际滚动容器由 react-window 的列表外层 div(.sentence-list) 提供（overflow:auto + 数值高度），
+     其 scrollTop 直接赋值在所有 WebView（含微信）中均可靠。 */
+  .practice__right {
+    flex: 1;
+    min-height: 0;
+    /* 移动端列表无 .page-pad 包裹，这里补齐左右安全边距（与 .page-pad 的 --sp-page 一致） */
+    padding-left: var(--sp-page);
+    padding-right: var(--sp-page);
+  }
+  /* 禁止列表外层被 flex 压缩 */
+  .practice__right > * { flex-shrink: 0; }
+  /* react-window 滚动容器：去掉聚焦描边，填满容器宽度 */
+  .sentence-list { outline: none; }
 
   /* ── 手机端：列表中的当前句就地展开为练习台 ──
      模式控件（原文/跟读/听写/挖空 + 字幕开关）位于展开面板顶部，

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Sentence } from "../shared";
 import { lsGet } from "./prefs";
 import { PracticeMode, isSingleSentenceMode } from "./practiceMode";
+import { smScrollLog } from "../scrollDebug";
 
 export interface PlayerDeps {
   sentences: Sentence[];
@@ -10,7 +11,7 @@ export interface PlayerDeps {
   setCurrentIndex: (idx: number) => void;
   goSentence: (idx: number) => void;
   reportPosition: (idx: number) => void;
-  scrollToSentence: (idx: number) => void;
+  scrollToSentence: (idx: number, behavior?: ScrollBehavior) => void;
   /** 当前练习模式（useExercises 在其后声明，由 useApp 延迟绑定；读取点均在渲染提交之后） */
   getPracticeMode: () => PracticeMode;
 }
@@ -108,7 +109,44 @@ export function usePlayer(deps: PlayerDeps) {
   };
 
   // 视频元数据就绪时尝试起播（覆盖"元数据后于数据就位"的情况）
-  const onVideoLoaded = () => { setPlayerLoading(false); tryStartPendingPlay(); };
+  const onVideoLoaded = () => {
+    setPlayerLoading(false);
+    tryStartPendingPlay();
+    // 视频真实高度此时才确定（.player-frame 撑开）；若其晚于首次滚动出现，
+    // 当前句会被新撑开的吸顶视频盖住半截——重滚一次当前句兜底。
+    smScrollLog(`VIDEOLOADED idx=${currentIndex}`);
+    requestAnimationFrame(() => scrollToSentence(currentIndex, "auto"));
+  };
+
+  // 吸顶栏(.player-bar)高度变化（视频元数据撑开 / 布局抖动）时，把当前句重新定位到其下方。
+  // 根因是「scrollToSentence 测量早于视频加载 → 当时 .player-bar 只有导航栏高度，等视频撑开后
+  // 吸顶栏变高把已定位好的当前句盖住半截」（真机 100% 复现）。ResizeObserver 监听高度变化，
+  // 一旦变高即把当前句重滚到新底边之下，彻底消除时序脆弱性（含 onVideoLoaded 兜底 + 此监听双保险）。
+  const scrollToSentenceRef = useRef(scrollToSentence);
+  scrollToSentenceRef.current = scrollToSentence;
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+  useEffect(() => {
+    let ro: ResizeObserver | null = null;
+    let raf = 0;
+    // player-bar 在首帧可能尚未渲染（sentences 加载前），轮询直到出现再挂载监听，
+    // 否则一次性 querySelector 拿 null 会直接跳过，导致视频加载后无法被纠正。
+    const attach = () => {
+      const bar = document.querySelector(".player-bar");
+      if (!bar || typeof ResizeObserver === "undefined") { raf = requestAnimationFrame(attach); return; }
+      let last = -1;
+      ro = new ResizeObserver(() => {
+      const h = bar.getBoundingClientRect().height;
+      if (last >= 0 && Math.abs(h - last) < 2) return; // 忽略细微抖动，避免无谓重滚
+        last = h;
+        smScrollLog(`RO barH=${h.toFixed(0)} idx=${currentIndexRef.current}`);
+        requestAnimationFrame(() => scrollToSentenceRef.current(currentIndexRef.current, "auto"));
+      });
+      ro.observe(bar);
+    };
+    attach();
+    return () => { if (raf) cancelAnimationFrame(raf); if (ro) ro.disconnect(); };
+  }, []);
 
   // 播放头驱动：单句自停/循环 + 高亮跟随 + 位置上报
   const handleTimeUpdate = (t: number, paused: boolean) => {
@@ -146,7 +184,11 @@ export function usePlayer(deps: PlayerDeps) {
       if (idx === currentIndex - 1) return;
       setCurrentIndex(idx);
       reportPosition(idx);
-      requestAnimationFrame(() => scrollToSentence(idx));
+      // 自动跟随：用 instant（auto）滚动，避免真机 smooth scroll 被高频重入取消/重启导致落点漂移
+      // （真机浏览器 smooth 重入不可靠，桌面模拟器仅偶发；这是真机 100% 半截显示的根因）。
+      // 用户主动导航（点击/上下句）仍走 smooth，见 goSentence / 进页定位。
+      smScrollLog(`AUTO idx=${idx} t=${v.currentTime.toFixed(2)}`);
+      requestAnimationFrame(() => scrollToSentence(idx, "auto"));
     }
   };
 

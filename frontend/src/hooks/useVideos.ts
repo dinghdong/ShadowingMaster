@@ -3,6 +3,7 @@ import { fetchVideos, fetchVideo, getProgress, saveProgress, submitVideo, getPar
 import { Video, Sentence, Page } from "../shared";
 import { JumpTarget } from "./useRouting";
 import { ShadowRecording } from "./useRecording";
+import { SM_SCROLL_DEBUG, smScrollLog } from "../scrollDebug";
 
 export interface VideosDeps {
   page: Page;
@@ -108,6 +109,7 @@ export function useVideos(deps: VideosDeps) {
           setResumeDismissed(false);
           setCurrentIndex(idx);
           // 进页定位：列表自动滚到上次学到/生词本跳转的目标句（延到 DOM 提交后测量布局）
+          smScrollLog(`PAGELOAD idx=${idx}`);
           requestAnimationFrame(() => scrollToSentence(idx));
           // 进页默认从「上次学到的位置」连续自动播放（不句末自停），
           // 句子列表随后自动滚到该句；"从头开始"浮条保留至用户点按/关闭
@@ -152,43 +154,78 @@ export function useVideos(deps: VideosDeps) {
     // 仅在有意导航时滚动（点击/上一下一句/从头开始），不再监听 currentIndex 全局副作用，
     // 避免 seek 期间 timeupdate 误写 currentIndex 触发多余滚动造成抖动。
     // rAF 延到 React 提交 DOM 后，确保移动端展开当前行的布局已生效再测量位置。
+    smScrollLog(`NAV idx=${clamped}`);
     requestAnimationFrame(() => scrollToSentence(clamped));
   };
 
   // 切句时清空各练习模式的临时输入（听写/挖空/精听揭示等）
   useEffect(() => { deps.resetSentenceState(); }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 滚动到指定句：保证整句完整落在可见区域，不被上方吸顶栏/侧边栏遮挡。
-  // 响应式布局差异：
-  //  · 移动端(<900px)：.practice__left 为 display:contents（不吸顶），真正的吸顶元素只有 .player-bar
-  //    （sticky top:0，内含 导航栏 + 视频 + 分隔线）——它会盖住下方的句子，故偏移 = .player-bar 完整高度。
-  //  · 桌面端(>=900px)：.practice__left 为 sticky 吸顶栏且位于左侧、不占纵向空间，桌面端偏移仅留 12px 间隙并居中。
-  // 用 window.scrollTo 是因为移动端整页（.app.practice）即滚动容器，句列在普通文档流中。
-  const scrollToSentence = (idx: number) => {
+  // 滚动到指定句：保证整句完整落在可见区域，不被上方导航/视频遮挡。
+  //
+  // 【架构决策】移动端使用「内部滚动容器」方案（.practice__right 为 overflow-y:auto 的 flex 子项），
+  // 彻底规避微信 WebView / iOS Safari 中 window.scrollBy / window.scrollTo 静默失效的问题
+  // （实测：这些 API 在微信内置浏览器中返回成功但不产生任何滚动，elTop 始终为 0）。
+  // 桌面端仍使用 window 滚动（.practice__right 不是滚动容器，行为不变）。
+  //
+  // 滚动方式：直接赋值 scrollTop（非 scrollBy/scrollTo API），该属性赋值在所有 WebView 中可靠触发重绘。
+  const scrollToSentence = (idx: number, behavior: ScrollBehavior = "smooth") => {
+    const leftCol = document.querySelector(".practice__left");
+    const mobile = !leftCol || getComputedStyle(leftCol).position !== "sticky";
+    // 移动端滚动由 MobileSentenceList(react-window) 接管：它内部监听 currentIndex 并调用
+    // listRef.scrollToItem(idx, "smart")，直接给滚动容器赋 scrollTop（微信 WebView 中唯一可靠的滚动方式）。
+    // 此处桌面端专用，不再手动操作移动端 DOM，避免与虚拟列表争抢滚动。
+    if (mobile) return;
+
     const el = document.getElementById(`sent-${idx}`);
     if (!el) return;
     const bar = document.querySelector(".player-bar");
-    const leftCol = document.querySelector(".practice__left");
-    // 移动端判定：左栏非 sticky（display:contents 计算 position=static）即视为移动端堆叠布局
-    const mobile = !leftCol || getComputedStyle(leftCol).position !== "sticky";
-    // 吸顶总高 = .player-bar 当前渲染高度（导航栏+视频+分隔线，由 sticky 实测，无需逐项累加）
-    const occluded = mobile && bar ? bar.getBoundingClientRect().height : 0;
-    const rect = el.getBoundingClientRect();
-    const elTop = rect.top + window.scrollY; // 句卡在文档中的绝对顶部
-    if (mobile) {
-      // 移动端：当前句顶 = 紧贴吸顶栏（导航+视频）下方，留 8px 呼吸间隙。
-      // 滚动后句卡 top 相对视口 = occluded+gap，即正好落在视频底边之下。
-      const gap = 8;
-      const top = Math.max(0, elTop - (occluded + gap));
-      window.scrollTo({ top, behavior: "smooth" });
-      return;
+
+    void document.body.offsetHeight; // 强制回流
+
+    // 桌面端：找到最近的 overflow 滚动容器（默认 window）；居中当前句
+    let scroller: HTMLElement | Window = window;
+    let n: HTMLElement | null = el.parentElement;
+    while (n && n !== document.body && n !== document.documentElement) {
+      const cs = getComputedStyle(n);
+      if ((cs.overflowY === "auto" || cs.overflowY === "scroll") && n.scrollHeight > n.clientHeight + 1) {
+        scroller = n;
+        break;
+      }
+      n = n.parentElement;
     }
-    // 桌面端：句卡顶部留 12px 间隙，再在剩余可用高度内尽量居中（过高卡片则贴顶，避免顶部被遮）
-    const elHeight = rect.height;
-    const offset = 12;
-    const avail = Math.max(160, window.innerHeight - offset);
-    const top = Math.max(0, elTop - offset - Math.max(0, (avail - elHeight) / 2));
-    window.scrollTo({ top, behavior: "smooth" });
+
+    const elTop = el.getBoundingClientRect().top;
+    const scrollerTop = scroller === window ? 0 : (scroller as HTMLElement).getBoundingClientRect().top;
+    const relativeElTop = elTop - scrollerTop; // 元素相对于滚动容器顶部
+    const gap = 24;
+
+    const vh = scroller === window ? window.innerHeight : (scroller as HTMLElement).clientHeight;
+    const elH = el.getBoundingClientRect().height;
+    const targetScroll = (scroller === window ? window.scrollY : (scroller as HTMLElement).scrollTop) + relativeElTop - (vh - elH) / 2;
+
+    if (SM_SCROLL_DEBUG) {
+      const scName = scroller === window ? "window" : (scroller as HTMLElement).className || (scroller as HTMLElement).tagName;
+      smScrollLog(`SCROLL idx=${idx} desktop relativeElTop=${relativeElTop.toFixed(0)} targetScroll=${targetScroll.toFixed(0)} scroller=${scName}`);
+    }
+
+    if (scroller === window) {
+      window.scrollTo({ top: targetScroll, behavior });
+    } else {
+      (scroller as HTMLElement).scrollTop = targetScroll;
+    }
+
+    if (SM_SCROLL_DEBUG) {
+      const measure = () => {
+        const elTopNow = el.getBoundingClientRect().top;
+        const headerNow = bar ? bar.getBoundingClientRect().bottom : 0;
+        const covered = elTopNow < headerNow - 2;
+        const currentST = scroller === window ? window.scrollY : (scroller as HTMLElement).scrollTop;
+        smScrollLog(`AFTER idx=${idx} elTopNow=${elTopNow.toFixed(0)} headerBottomNow=${headerNow.toFixed(0)} scrollTop=${currentST.toFixed(0)} ${covered ? "BAD❌被遮" : "OK✅未遮"}`);
+      };
+      if (behavior === "smooth") setTimeout(measure, 500);
+      else requestAnimationFrame(() => requestAnimationFrame(measure));
+    }
   };
 
   const jumpToStart = () => {

@@ -11,9 +11,11 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@types/react-window": "^1.8.8",
     "@vercel/analytics": "^2.0.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-window": "^1.8.11"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
