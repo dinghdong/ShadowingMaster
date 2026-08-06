@@ -2,6 +2,7 @@
 用法：python import_video.py <youtube_id> <title>
 Slice 2 会把它泛化成完整的爬取 CLI。
 """
+import html
 import re
 import json
 import sqlite3
@@ -18,6 +19,19 @@ TS_RE = re.compile(r"(\d+):(\d+):(\d+)\.(\d+)")
 TAG_RE = re.compile(r"<[^>]+>")
 SKIP_RE = re.compile(r"^\[.*\]$")  # [Music] / [Applause] 等
 BRACKET_RE = re.compile(r"\[[^\]]*\]")  # 句中混入的 [music] 等标记，直接剔除
+# YouTube 自动字幕常在句首加 ">>" 表示说话人切换（VTT 里是 &gt;&gt;），纯字幕噪声，整段剔除
+SPEAKER_RE = re.compile(r"^>+\s*")
+
+
+def clean_text(s: str) -> str:
+    """清洗一行字幕原文：去 VTT 标签 → 解码 HTML 实体（&gt; &nbsp; &amp; …）→
+    非断空格归一 → 去 [music] 等标记 → 去句首说话人标记 >>。"""
+    s = TAG_RE.sub("", s)
+    s = html.unescape(s)
+    s = s.replace("\xa0", " ")  # &nbsp; → 普通空格
+    s = BRACKET_RE.sub("", s)
+    s = SPEAKER_RE.sub("", s).strip()
+    return s
 
 
 def ts_to_sec(ts: str) -> float:
@@ -43,14 +57,20 @@ def parse_vtt(path: Path):
             while i < len(lines) and lines[i] != "":
                 raw = lines[i]
                 had_tag = bool(TAG_RE.search(raw))
-                clean = TAG_RE.sub("", raw).strip()
+                clean = clean_text(raw)
                 if clean:
                     cue_lines.append(clean)
                     if had_tag:
                         new_line = clean
                 i += 1
-            # 只取带卡拉OK标签的"新词行"；无标签的单行 cue 是上一句的复述/音乐，跳过
-            text = BRACKET_RE.sub("", new_line).strip()
+            # 优先取带卡拉OK标签的"新词行"（YouTube 自动字幕，天然去重）；
+            # 无标签时（人工字幕/TED 等非自动字幕）回退到拼接全部 cue 行。
+            if new_line.strip():
+                text = new_line.strip()
+            elif cue_lines:
+                text = " ".join(cue_lines)
+            else:
+                text = ""
             if text:
                 chunks.append((ts_to_sec(start_s), ts_to_sec(end_s), text))
         else:
@@ -131,7 +151,16 @@ def ingest(youtube_id: str, title: str, duration: Optional[int] = None, descript
     """
     vtt = MEDIA / f"{youtube_id}.en.vtt"
     mp4 = MEDIA / f"{youtube_id}.mp4"
-    assert vtt.exists() and mp4.exists(), f"缺少 {vtt} 或 {mp4}，先用 yt-dlp 下载"
+    if not vtt.exists() or not mp4.exists():
+        missing = []
+        if not vtt.exists():
+            missing.append(str(vtt))
+        if not mp4.exists():
+            missing.append(str(mp4))
+        raise FileNotFoundError(
+            f"导入失败：{', '.join(missing)} 不存在。"
+            "通常是 yt-dlp 未成功下载完整视频或英文字幕，请检查下载阶段日志。"
+        )
 
     sents = merge_sentences(parse_vtt(vtt))
     if duration is None:
