@@ -153,6 +153,28 @@ def _build_format_selector() -> str:
     return "/".join(parts)
 
 
+def _pick_english_langs(info: dict) -> list:
+    """从 extract_info 结果里挑出真实可下载的英文语言代码，兼顾自动/手动字幕。
+    YouTube 自动字幕的 key 并不固定：常见有 en / en-US / en-GB，也有 en-en-US（"English from
+    English (United States)"）等。硬编码请求某一组会漏掉其余，触发「no subtitles」。这里直接
+    读视频实际提供的 key，避免对语言代码做假设。
+    优先顺序：en > en-US > en-GB > 其余 en-*（自动/手动去重合并）。"""
+    auto = info.get("automatic_captions") or {}
+    manual = info.get("subtitles") or {}
+    en_auto = sorted(k for k in auto if k.startswith("en"))
+    en_manual = sorted(k for k in manual if k.startswith("en"))
+
+    pref = ["en", "en-US", "en-GB"]
+    chosen: list = []
+    for k in pref:
+        if k in auto or k in manual:
+            chosen.append(k)
+    for k in en_auto + en_manual:
+        if k not in chosen:
+            chosen.append(k)
+    return chosen
+
+
 def _resolve_english_vtt(youtube_id: str) -> Path:
     """yt-dlp 按请求的 lang 写文件名，但 YouTube 自动字幕可能只有 en-US/en-GB 等变体。
     下载后若预期的 {id}.en.vtt 不存在，则把任意 en-*.vtt 复制为 .en.vtt，供 ingest 消费。
@@ -193,14 +215,30 @@ def _upload_assets(youtube_id: str):
 
 
 def fetch(url: str) -> int:
-    # 1. 取视频元信息（id / 标题 / 时长）
-    with yt_dlp.YoutubeDL(_apply_cookies({"quiet": True, "skip_download": True})) as ydl:
+    # 1. 取视频元信息（id / 标题 / 时长）。这里也带 writeautomaticsub/listsubtitles，
+    #    否则 extract_info 不会完整填充 automatic_captions（只有真实可下载的英文 key 才会
+    #    出现，例如 en-en-US），导致下方 _pick_english_langs 漏读语言代码。
+    with yt_dlp.YoutubeDL(_apply_cookies({
+        "quiet": True,
+        "skip_download": True,
+        "writeautomaticsub": True,
+        "listsubtitles": True,
+    })) as ydl:
         info = ydl.extract_info(url, download=False)
     youtube_id, title = info["id"], info["title"]
     duration = int(info.get("duration") or 0)
     description = (info.get("description") or "").strip()
     tags = info.get("tags") or []
     print(f"视频：{title} ({youtube_id})")
+
+    # 1.5 先确认有可下载的英文字幕（key 可能是 en / en-US / en-GB / en-en-US 等），
+    # 没有就提前报错，避免白下载几十 MB 视频。
+    en_langs = _pick_english_langs(info)
+    if not en_langs:
+        raise ValueError(
+            f"视频 {youtube_id} 没有可用的英文字幕（自动/手动字幕均未提供 en* 语言）。"
+        )
+    print(f"英文字幕语言：{', '.join(en_langs)}")
 
     # 2. 下载低清 mp4 + 英文自动字幕 + 封面到 media/
     #    ffmpeg 缺失时跳过后处理（封面改产 webp，import_video.ingest 已兼容）；
@@ -212,9 +250,9 @@ def fetch(url: str) -> int:
     opts = {
         "format": _build_format_selector(),
         "writeautomaticsub": True,
-        # YouTube 自动字幕常见 en-US / en-GB；同时请求可让 yt-dlp 尽量把能写的都写出来，
+        # 直接用视频实际提供的英文 key（见 _pick_english_langs），避免硬编码漏掉 en-en-US 等变体；
         # 后续 _resolve_english_vtt 会挑一个 en*.vtt 重命名为 {id}.en.vtt。
-        "subtitleslangs": ["en", "en-US", "en-GB"],
+        "subtitleslangs": en_langs,
         "subtitlesformat": "vtt",
         "writethumbnail": True,
         "postprocessors": postprocessors,
@@ -257,7 +295,7 @@ def fetch(url: str) -> int:
         from translate_video import translate_video
         import sqlite3
         from import_video import DB_PATH
-        conn = sqlite3.connect(str(DB_PATH))
+        conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
         ok, fail = translate_video(conn, video_id)
         conn.close()
         print(f"中文字幕：翻译 {ok} 句" + (f"，失败 {fail} 句" if fail else ""))
