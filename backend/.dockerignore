@@ -1,12 +1,25 @@
-media/
+# 依赖 / 缓存
 __pycache__/
 *.pyc
-*.pyo
-app.db
-data/
-.git/
-.env
 .venv/
 venv/
-node_modules/
+.env
+.env.*
+!.env.example
+
+# 数据 & 媒体（运行时由挂载卷 / OSS 提供，不进镜像）
+app.db
+app.db.*
+media/
+data/
+
+# 测试 & 工具
+tests/
 *.md
+playwright-report/
+test-results/
+
+# VCS & 系统
+.git/
+.gitignore
+.DS_Store

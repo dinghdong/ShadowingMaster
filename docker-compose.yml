@@ -1,0 +1,45 @@
+# ShadowingMaster —— 单 VPS 部署
+# 服务：backend (FastAPI) + caddy (反向代理 + 自动 TLS)
+# 用法（在 VPS 的 /opt/shadowingmaster，.env 已就位）：
+#   docker compose pull && docker compose up -d
+#
+# 镜像默认走公共 GHCR；私有化见 README「部署」章节（用 PAT 拉取）。
+# BACKEND_IMAGE / GHCR 镜像名由 .env 注入（变量替换）。
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/OWNER/shadowingmaster-backend:latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # 把 app.db 与 media 统一指向挂载卷，避免遮挡镜像内代码
+      DATA_DIR: /data
+    volumes:
+      - appdata:/data
+    expose:
+      - "8000"
+    healthcheck:
+      # 复用 /api/health；容器内自带 python
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  appdata:
+  caddy_data:
+  caddy_config:

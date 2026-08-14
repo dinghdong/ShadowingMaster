@@ -1,0 +1,11 @@
+# ShadowingMaster —— Caddy 反向代理 + 自动 TLS
+# 部署时由 CI 把 DOMAIN 替换为真实域名（如 api.shadowingmaster.com）后下发到 VPS。
+# Caddy 自动向 Let's Encrypt 申请/续期证书，无需手动管理。
+#
+# 本地开发不需要本文件（前端直连 localhost:8000）。
+
+api.DOMAIN {
+    encode gzip
+    # 反向代理到同 compose 网络的 backend 容器
+    reverse_proxy backend:8000
+}

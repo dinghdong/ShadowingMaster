@@ -1,0 +1,69 @@
+name: Deploy backend
+
+# 触发：push 到 main。前端由 Vercel git 集成独立部署（见 README「部署」）。
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # 推送到 GHCR 需要写包权限
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ghcr.io/${{ github.repository }}/backend:latest
+
+      - name: Render Caddyfile (inject domain)
+        run: sed "s/DOMAIN/${{ secrets.DEPLOY_DOMAIN }}/g" Caddyfile > Caddyfile.rendered
+
+      - name: Ship compose + Caddyfile to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "docker-compose.yml,Caddyfile.rendered"
+          target: "/opt/shadowingmaster"
+          overwrite: true
+
+      - name: Write env + roll out
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/shadowingmaster
+            mv -f Caddyfile.rendered Caddyfile
+            # 运行时 .env（来自仓库 Secrets.BACKEND_ENV）；不要在其中写 BACKEND_IMAGE
+            printf '%s\n' "${{ secrets.BACKEND_ENV }}" > .env
+            grep -q '^BACKEND_IMAGE=' .env || echo "BACKEND_IMAGE=ghcr.io/${{ github.repository }}/backend:latest" >> .env
+            docker compose pull backend
+            docker compose up -d --remove-orphans
+            echo "waiting for /api/health ..."
+            for i in $(seq 1 12); do
+              if curl -fsS "https://${{ secrets.DEPLOY_DOMAIN }}/api/health"; then
+                echo "DEPLOY OK"; exit 0
+              fi
+              sleep 5
+            done
+            echo "HEALTH CHECK FAILED"; exit 1

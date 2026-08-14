@@ -4,8 +4,11 @@
 import sqlite3
 from pathlib import Path
 
-# 本文件位于 backend/core/，故 .parent=backend/core, .parent.parent=backend, .parent.parent.parent=项目根
-DB_PATH = Path(__file__).parent.parent.parent / "app.db"
+from core.config import DATA_DIR
+
+# 本文件位于 backend/core/，故 .parent=backend/core, .parent.parent=backend, .parent.parent.parent=项目根。
+# 生产通过 DATA_DIR 把库文件指向挂载卷（如 /data/app.db），避免直接挂载 /app 遮挡应用代码。
+DB_PATH = (Path(DATA_DIR) / "app.db") if DATA_DIR else (Path(__file__).parent.parent.parent / "app.db")
 
 
 def get_db():

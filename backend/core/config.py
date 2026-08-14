@@ -18,10 +18,15 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["*"]
 CORS_ALLOW_HEADERS = ["*"]
 
+# ── 数据目录（部署用）──
+# 生产通过 DATA_DIR 把 app.db 与 media 统一指向挂载卷（如 /data），
+# 避免直接挂载 /app 遮挡镜像内的应用代码。未设置时退回到开发期默认路径。
+DATA_DIR = os.environ.get("DATA_DIR")
+
 # ── 媒体目录与类型（支持 Range 拖拽）──
 # config.py 位于 backend/core/，故 .parent = backend/core，.parent.parent = backend
-# → MEDIA_DIR 仍是 backend/media，与拆分前一致
-MEDIA_DIR = Path(__file__).parent.parent / "media"
+# → MEDIA_DIR 默认仍是 backend/media，与拆分前一致
+MEDIA_DIR = (Path(DATA_DIR) / "media") if DATA_DIR else (Path(__file__).parent.parent / "media")
 MEDIA_TYPES = {
     ".mp4": "video/mp4",
     ".jpg": "image/jpeg",
