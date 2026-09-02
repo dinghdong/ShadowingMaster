@@ -81,6 +81,19 @@ def upload_file(rel_path: str, local_path: str) -> str:
     return signed_url(rel_path)
 
 
+def delete_object(rel_path: str) -> bool:
+    """删除 OSS 对象（视频/缩略图清理用）。成功返回 True，对象不存在或 OSS 未启用返回 False。"""
+    if not OSS_ENABLED or not rel_path:
+        return False
+    if str(rel_path).startswith(("http://", "https://")):
+        return False
+    try:
+        _bucket_client().delete_object(key_for(rel_path))
+        return True
+    except Exception:
+        return False
+
+
 def get_serve_url(rel_path):
     """解析给前端的媒体 URL：OSS 启用 -> 带签名的绝对 URL；否则原样返回相对路径。"""
     if not rel_path:

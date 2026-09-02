@@ -5,7 +5,10 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 yt-dlp
-curl_cffi  # 启用 yt-dlp TLS 客户端指纹伪装（impersonation）；缺失时 ANDROID_VR 等客户端连接被 YouTube CDN 间歇性 TLS 重置（SSL UNEXPECTED_EOF），见 backend/fetch_video.py
+curl_cffi>=0.10,<0.16  # 启用 yt-dlp TLS 客户端指纹伪装（impersonation）；缺失时 ANDROID_VR 等客户端连接被 YouTube CDN 间歇性 TLS 重置（SSL UNEXPECTED_EOF），见 backend/fetch_video.py。
+                       # 版本上界必须钉死：curl_cffi 0.16+ 会被 yt-dlp 拒绝加载（"Only curl_cffi versions 0.5.10 and 0.10.x through 0.15.x are supported"），
+                       # 表现为装了却 --list-impersonate-targets 全 unavailable，等同于没装。
 requests
 aiofiles
 oss2  # 阿里云 OSS 媒体存储（部署到阿里云时使用；缺失时自动降级为本地磁盘，见 backend/core/oss.py）
+-e ../packages/proxy_auto  # 自研零依赖出站代理探测库（fetch_video / translate_video 共用），见 packages/proxy_auto

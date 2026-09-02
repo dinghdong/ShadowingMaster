@@ -1,0 +1,45 @@
+Metadata-Version: 2.4
+Name: proxy-auto
+Version: 0.1.0
+Summary: Zero-dependency outbound proxy auto-detection for crawlers/API clients (macOS scutil + standard env vars).
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
+# proxy-auto
+
+零第三方依赖的出站代理自动探测库，供爬虫 / API 客户端跨项目复用。
+
+## 为什么存在
+
+受墙网络下直连 Google/YouTube 会超时，必须走本机 ClashX/Clash 等代理。
+ShadowingMaster 的 yt-dlp 抓取与翻译脚本各自写过一份 macOS `scutil` 探测，逻辑重复。
+本库收敛为单文件、零依赖，可 `pip install` 到任意项目。
+
+## 安装
+
+```bash
+pip install -e ./packages/proxy_auto
+```
+
+## 用法
+
+```python
+from proxy_auto import detect_proxy_url, to_requests_proxies, apply_to_ytdlp
+
+url = detect_proxy_url()                # 读 YTDLP_PROXY → 系统代理兜底；空串 = 直连
+
+# requests 客户端
+requests.get("https://...", timeout=15, proxies=to_requests_proxies(url))
+
+# yt-dlp 客户端
+opts = apply_to_ytdlp({"quiet": True}, url)
+
+# 生产环境钉死代理：直接 export YTDLP_PROXY=http://user:pass@host:port
+```
+
+## 探测优先级
+
+1. 环境变量 `YTDLP_PROXY`（显式配置，生产用）
+2. macOS：`scutil --proxy` 读系统设置（ClashX 等监听 127.0.0.1:7890）
+3. 标准 `https_proxy` / `http_proxy` 环境变量

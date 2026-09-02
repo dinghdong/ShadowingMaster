@@ -2,13 +2,14 @@
 import json
 import threading
 from typing import Optional
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.config import parse_youtube_id
 from core.db import get_db
 from core.security import get_current_user
-from core.oss import get_serve_url
+from core.oss import get_serve_url, delete_object
 from models.schemas import VideoOut, ParseRequest
 from services.parse_job import run_parse_job
 
@@ -97,6 +98,55 @@ def parse_video(req: ParseRequest, current_user=Depends(get_current_user)):
 
     threading.Thread(target=run_parse_job, args=(job_id, req.url), daemon=True).start()
     return {"job_id": job_id, "status": "pending"}
+
+
+@router.delete("/{video_id}")
+def delete_video(video_id: int, current_user=Depends(get_current_user)):
+    """删除视频及其全部关联数据（句子/生词/进度/单词本/收藏/笔记），并尽力清理媒体文件。
+
+    仅已登录用户可调用；生产环境建议仅管理员账户持有 token。
+    """
+    conn = get_db()
+    video = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    if not video:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    sentence_ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM sentences WHERE video_id = ?", (video_id,)
+    ).fetchall()]
+
+    # 子表先于父表删除，避免外键约束报错
+    if sentence_ids:
+        placeholders = ",".join("?" * len(sentence_ids))
+        conn.execute(f"DELETE FROM favorites WHERE sentence_id IN ({placeholders})", sentence_ids)
+        conn.execute(f"DELETE FROM notes WHERE sentence_id IN ({placeholders})", sentence_ids)
+    conn.execute("DELETE FROM vocabulary_words WHERE video_id = ?", (video_id,))
+    conn.execute("DELETE FROM word_books WHERE video_id = ?", (video_id,))
+    conn.execute("DELETE FROM user_progress WHERE video_id = ?", (video_id,))
+    conn.execute("DELETE FROM sentences WHERE video_id = ?", (video_id,))
+    # 保留解析任务记录，仅解除与视频的关联
+    conn.execute("UPDATE parse_jobs SET video_id = NULL WHERE video_id = ?", (video_id,))
+    conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+    conn.commit()
+    conn.close()
+
+    # 尽力清理媒体（OSS 对象或本地文件）；失败不影响已完成的 DB 删除
+    for media in (video.get("video_path"), video.get("thumbnail_url")):
+        if not media:
+            continue
+        if delete_object(media):
+            continue
+        if not str(media).startswith(("http://", "https://")):
+            local = Path(media.lstrip("/"))
+            if not local.is_absolute():
+                local = Path(__file__).parent.parent.parent / media.lstrip("/")
+            try:
+                local.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    return {"deleted": True, "video_id": video_id}
 
 
 @router.get("/jobs/{job_id}")

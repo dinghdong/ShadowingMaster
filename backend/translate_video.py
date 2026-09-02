@@ -18,39 +18,12 @@ DB_PATH = Path(__file__).parent.parent / "app.db"
 DEFAULT_WORKERS = int(os.environ.get("TRANSLATE_WORKERS", "8"))
 
 
-def _detect_proxy() -> dict:
-    """探测翻译请求要走的代理。
-    与 fetch_video._detect_system_proxy 同源：优先 YTDLP_PROXY 环境变量，
-    否则 macOS 用 scutil 读系统代理（ClashX 等常监听 127.0.0.1:7890）。
-    直连 Google 翻译在受墙网络下会超时，必须走代理。"""
-    env = os.environ.get("YTDLP_PROXY", "").strip()
-    proxy = env
-    if not proxy and sys.platform == "darwin":
-        try:
-            import re
-            import subprocess
-            out = subprocess.run(
-                ["scutil", "--proxy"], capture_output=True, text=True, timeout=5
-            ).stdout
-            host = port = None
-            for line in out.splitlines():
-                m = re.match(r"\s*(HTTPS?Proxy)\s*:\s*(\S+)", line)
-                if m:
-                    host = m.group(2)
-                m = re.match(r"\s*(HTTPS?Port)\s*:\s*(\d+)", line)
-                if m:
-                    port = m.group(2)
-                if host and port and host not in ("0", ""):
-                    proxy = f"http://{host}:{port}"
-                    break
-        except Exception:
-            pass
-    if not proxy:
-        return {}
-    return {"http": proxy, "https": proxy}
+from proxy_auto import detect_proxy_url, to_requests_proxies
 
-
-_PROXIES = _detect_proxy()
+# 翻译请求要走的代理：直连 Google 翻译在受墙网络下会超时，必须走代理。
+# 探测逻辑收敛在可复用零依赖库 proxy_auto（packages/proxy_auto）：
+# 优先 YTDLP_PROXY 环境变量，否则 macOS 读系统代理（ClashX 等 127.0.0.1:7890）。
+_PROXIES = to_requests_proxies(detect_proxy_url("YTDLP_PROXY"))
 
 
 def translate(text: str) -> str | None:

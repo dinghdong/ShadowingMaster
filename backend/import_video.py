@@ -21,6 +21,11 @@ SKIP_RE = re.compile(r"^\[.*\]$")  # [Music] / [Applause] 等
 BRACKET_RE = re.compile(r"\[[^\]]*\]")  # 句中混入的 [music] 等标记，直接剔除
 # YouTube 自动字幕常在句首加 ">>" 表示说话人切换（VTT 里是 &gt;&gt;），纯字幕噪声，整段剔除
 SPEAKER_RE = re.compile(r"^>+\s*")
+# TED / 社区翻译字幕首条 cue 常是译者署名（中文轨尤其明显），不是台词内容，整行剔除。
+CREDITS_RE = re.compile(
+    r"^\s*(翻译人员|校对人员|译者|审校|字幕翻译|Translator|Reviewer|Translated by|Reviewed by)\s*[:：]",
+    re.IGNORECASE,
+)
 
 
 def clean_text(s: str) -> str:
@@ -40,8 +45,26 @@ def ts_to_sec(ts: str) -> float:
     return h * 3600 + mnt * 60 + s + ms / 1000
 
 
-def parse_vtt(path: Path):
-    """解析 YouTube 滚动式自动字幕：每条 cue 只取带卡拉OK标签的'新词行'，天然去重。"""
+CJK_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff]")
+
+
+def join_texts(parts) -> str:
+    """拼接字幕片段：中日文不用空格分隔（否则译文里会出现「它们 有非常」这种断裂），
+    拉丁文仍用空格。"""
+    parts = [p for p in parts if p]
+    if not parts:
+        return ""
+    sep = "" if any(CJK_RE.search(p) for p in parts) else " "
+    return sep.join(parts)
+
+
+def parse_vtt(path: Path, full_text: bool = False):
+    """解析 YouTube 滚动式自动字幕：每条 cue 只取带卡拉OK标签的'新词行'，天然去重。
+
+    full_text=True：改为拼接 cue 内全部行。用于**译文**字幕（如 zh-Hans）——
+    译文的 <c> 标签对应的是源语言词边界，中文没有空格，只取"新词行"会把句子切碎，
+    必须整条 cue 都取。
+    """
     chunks = []
     lines = path.read_text(encoding="utf-8").splitlines()
     i = 0
@@ -58,6 +81,8 @@ def parse_vtt(path: Path):
                 raw = lines[i]
                 had_tag = bool(TAG_RE.search(raw))
                 clean = clean_text(raw)
+                if clean and CREDITS_RE.match(clean):
+                    clean = ""  # 译者署名行：丢弃，避免混进第一句台词
                 if clean:
                     cue_lines.append(clean)
                     if had_tag:
@@ -65,7 +90,9 @@ def parse_vtt(path: Path):
                 i += 1
             # 优先取带卡拉OK标签的"新词行"（YouTube 自动字幕，天然去重）；
             # 无标签时（人工字幕/TED 等非自动字幕）回退到拼接全部 cue 行。
-            if new_line.strip():
+            if full_text:
+                text = join_texts(cue_lines)
+            elif new_line.strip():
                 text = new_line.strip()
             elif cue_lines:
                 text = " ".join(cue_lines)
@@ -132,6 +159,42 @@ def merge_sentences(chunks, max_gap=3.0):
     return [(st, en + 0.4, t[0].upper() + t[1:]) for st, en, t in out]  # 句末留 0.4s 尾巴，避免最后一个词被截
 
 
+def align_chinese(sents, zh_chunks):
+    """把中文字幕（YouTube 官方译文轨）按时间轴对齐到已切好的英文句子。
+
+    英文句子是我们自己按标点/词数合并出来的，与中文字幕的 cue 边界并不一致，
+    所以这里做的是「区间重叠拼接」而非一一对应：
+    - 与该英文句时间区间有重叠的中文 cue，按时间序拼接成该句的译文；
+    - 完全没有重叠时（译文轨时间轴漂移/缺失片段），退化为取中心点最近的一条 cue，
+      避免整句中文为空而把句子推回机器翻译。
+    """
+    if not zh_chunks:
+        return []
+    out = []
+    for st, en, _text in sents:
+        # 只算重叠时长，再按阈值筛掉「擦边」的邻居 cue：英文句边界是我们自己合并出来的，
+        # 常与中文 cue 差 0.1~0.3s，若不过滤会把上/下一句译文的尾巴也拼进来。
+        cands = []
+        for zst, zen, ztext in zh_chunks:
+            ov = min(en, zen) - max(st, zst)
+            if ov > 0:
+                cands.append((ov, zst, ztext))
+        if cands:
+            thr = min(0.35, (en - st) * 0.15)
+            keep = [c for c in cands if c[0] >= thr] or [max(cands)]
+            keep.sort(key=lambda c: c[1])  # 按时间序拼接
+            out.append(join_texts([t for _, _, t in keep]))
+        else:
+            mid = (st + en) / 2
+            best, best_d = "", None
+            for zst, zen, ztext in zh_chunks:
+                d = 0.0 if zst <= mid <= zen else min(abs(zst - mid), abs(zen - mid))
+                if best_d is None or d < best_d:
+                    best, best_d = ztext, d
+            out.append(best)
+    return out
+
+
 def probe_duration(mp4: Path) -> Optional[int]:
     # ffmpeg 缺失时返回 None，由调用方回退到 yt-dlp 元信息里的 duration
     try:
@@ -166,6 +229,17 @@ def ingest(youtube_id: str, title: str, duration: Optional[int] = None, descript
     if duration is None:
         duration = probe_duration(mp4) or 0
 
+    # 中文译文：优先用 YouTube 官方译文轨（zh-Hans 等，由 fetch_video 下载为 *.zh.vtt）。
+    # 相比调第三方翻译 API，官方译文无限流、质量更好，且时间轴与英文字幕同源。
+    # 只有在译文轨缺失/未覆盖到的句子上，才留给 translate_video 走机器翻译补漏。
+    zh_map = []
+    zh_vtt = MEDIA / f"{youtube_id}.zh.vtt"
+    if zh_vtt.exists():
+        zh_chunks = parse_vtt(zh_vtt, full_text=True)
+        zh_map = align_chinese(sents, zh_chunks)
+        filled = sum(1 for x in zh_map if x)
+        print(f"中文字幕轨：{len(zh_chunks)} 条，覆盖 {filled}/{len(sents)} 句")
+
     # 封面：ffmpeg 缺失时 yt-dlp 可能只产出 webp/png，按扩展名依次查找
     thumb_url = None
     for ext in ("jpg", "webp", "png"):
@@ -185,8 +259,9 @@ def ingest(youtube_id: str, title: str, duration: Optional[int] = None, descript
     )
     vid = cur.lastrowid
     conn.executemany(
-        "INSERT INTO sentences (video_id, sentence_index, start_time, end_time, english_text) VALUES (?,?,?,?,?)",
-        [(vid, idx, st, en, text) for idx, (st, en, text) in enumerate(sents)],
+        "INSERT INTO sentences (video_id, sentence_index, start_time, end_time, english_text, chinese_text) VALUES (?,?,?,?,?,?)",
+        [(vid, idx, st, en, text, (zh_map[idx] if idx < len(zh_map) else None))
+         for idx, (st, en, text) in enumerate(sents)],
     )
     conn.commit()
     conn.close()

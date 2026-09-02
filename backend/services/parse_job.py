@@ -4,9 +4,12 @@
 - 仅在此处延迟 import `fetch_video.fetch`（yt-dlp 缺失时不拖垮 API 启动）；
 - 调用方（routers/videos.py）只调 `run_parse_job(job_id, url)`，不感知下载细节。
 """
+import logging
 from typing import Optional
 
 from core.db import get_db
+
+logger = logging.getLogger("parse_job")
 
 
 def run_parse_job(job_id: int, url: str):
@@ -28,6 +31,7 @@ def run_parse_job(job_id: int, url: str):
         video_id = fetch(url)
         set_status("done", video_id=video_id)
     except Exception as e:
-        err = str(e)[:500]
-        set_status("failed", error=err)
-        print(f"[parse_job {job_id}] failed: {err}")
+        import re
+        clean = re.sub(r"\x1b\[[0-9;]*m", "", str(e))[:500]
+        set_status("failed", error=clean)
+        logger.error("parse_job %s 失败: %s", job_id, clean, exc_info=True)

@@ -1,0 +1,7 @@
+README.md
+proxy_auto.py
+pyproject.toml
+proxy_auto.egg-info/PKG-INFO
+proxy_auto.egg-info/SOURCES.txt
+proxy_auto.egg-info/dependency_links.txt
+proxy_auto.egg-info/top_level.txt
