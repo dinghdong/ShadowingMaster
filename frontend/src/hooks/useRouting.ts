@@ -19,6 +19,7 @@ export function useRouting() {
     if (p === "/profile") return { page: "profile", videoId: null };
     if (p === "/add") return { page: "add", videoId: null };
     if (p === "/login") return { page: "login", videoId: null };
+    if (p === "/styleguide") return { page: "styleguide", videoId: null };
     if (p === "/app") return { page: "list", videoId: null };
     return { page: "landing", videoId: null };
   };

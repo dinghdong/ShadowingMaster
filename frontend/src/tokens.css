@@ -1,6 +1,6 @@
 /* ============================================================
    ShadowingMaster · Design Tokens (Slice UI 优化)
-   事实源：docs/UI-DESIGN-SPEC.md / docs/UI-DESIGN-SYSTEM.html
+   事实源：../docs/UI-DESIGN-SPEC.md / ../docs/UI-DESIGN-SYSTEM.html
    所有视觉值仅在此定义，组件类只能引用 var(--xxx)。
    ============================================================ */
 
@@ -33,6 +33,7 @@
 
   --read-bg: #F5F5F5;       /* 已读句气泡底 */
   --scrim: rgba(45, 30, 20, 0.42);
+  --scrim-strong: rgba(28, 22, 20, 0.9);
   --scrim-soft: rgba(45, 30, 20, 0.06);
   --on-scrim: #FFFFFF;
 
@@ -116,6 +117,7 @@
 
   --read-bg: #241F1D;
   --scrim: rgba(0, 0, 0, 0.6);
+  --scrim-strong: rgba(0, 0, 0, 0.85);
   --scrim-soft: rgba(255, 255, 255, 0.05);
   --on-scrim: #F5EFEA;
 

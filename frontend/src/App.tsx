@@ -11,6 +11,7 @@ import AddVideoPage from "./pages/AddVideoPage";
 import VideoListPage from "./pages/VideoListPage";
 import WordBookPage from "./pages/WordBookPage";
 import PracticePage from "./pages/PracticePage";
+import StyleGuidePage from "./pages/StyleGuidePage";
 
 export default function App() {
   const app = useApp();
@@ -27,6 +28,8 @@ export default function App() {
   if (app.page === "landing") return <LandingPage {...app} theme={theme} onToggleTheme={onToggleTheme} />;
 
   if (app.page === "login") return <LoginPage app={app} theme={theme} onToggleTheme={onToggleTheme} />;
+
+  if (app.page === "styleguide") return <StyleGuidePage />;
 
   const withShell = (node: React.ReactNode) => (
     <DesktopShell p={app} theme={theme} onToggleTheme={onToggleTheme}>{node}</DesktopShell>

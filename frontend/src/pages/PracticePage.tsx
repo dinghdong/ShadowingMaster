@@ -190,7 +190,7 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
                 }}
               />
             ) : (
-              <div style={{ color: "#fff", fontSize: "var(--fs-secondary)" }}>暂无视频文件</div>
+              <div style={{ color: "var(--on-scrim)", fontSize: "var(--fs-secondary)" }}>暂无视频文件</div>
             )}
             <button
               aria-label="play-pause"
@@ -306,60 +306,10 @@ export default function PracticePage({ app, isMobile }: { app: AppState; isMobil
       </div>
       {p.playerLoading && (
         <div className="practice-loading-overlay" aria-hidden="true">
-          <div className="app practice">
-            {/* ── 真实 Header（导航栏）── 不用骨架，加载完成后零抖动 */}
-            <div className="player-bar">
-              <div className="navbar navbar--keep">
-                <div className="navbar__lead">
-                  <span className="icon-btn icon-btn--plain navbar__back" aria-hidden="true"><Icon name="arrowLeft" size={22} /></span>
-                  <div className="navbar__title" style={{ fontSize: "calc(var(--fs-body) - 1px)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {p.currentVideo?.title || (
-                      <span className="skeleton" style={{ display: "inline-block", width: "55%", height: 18, borderRadius: "var(--r-sm)" }} />
-                    )}
-                  </div>
-                </div>
-                <div className="navbar__settings">
-                  <span className="icon-btn" aria-hidden="true"><Icon name="sliders" size={18} /></span>
-                </div>
-              </div>
-            </div>
-
-            {/* ── 真实视频框架（含 spinner 遮罩）── 视频元素可立即挂载触发 loadedMetadata */}
-            <div className="page-pad">
-              <div className="player-frame">
-                {p.currentVideo?.video_path ? (
-                  <video
-                    src={mediaUrl(p.currentVideo.video_path)}
-                    poster={mediaUrl(p.currentVideo.thumbnail_url)}
-                    playsInline
-                    muted
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                    onLoadedMetadata={(e) => {
-                      const v = e.currentTarget;
-                      const w = v.videoWidth || 16;
-                      const h = v.videoHeight || 9;
-                      const frame = v.closest(".player-frame") as HTMLElement | null;
-                      if (frame) frame.style.setProperty("--video-aspect", String(w / h));
-                    }}
-                  />
-                ) : null}
-                <div className="practice-skeleton__overlay" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface)", borderRadius: "var(--r-lg)" }}>
-                  <Spinner size="lg" />
-                </div>
-              </div>
-            </div>
-
-            {/* ── 句子列表加载提示（文字，居中填满剩余空间） ── */}
-            <div className="page-pad" aria-hidden="true"
-              style={isMobile
-                ? { paddingLeft: "var(--sp-page)", paddingRight: "var(--sp-page)", flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }
-                : undefined}>
-              <div style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: "var(--fs-secondary)" }}>
-                <Spinner size="sm" />
-                <div style={{ marginTop: "var(--sp-2)" }}>
-                  {count ? `正在加载 ${count} 个句子…` : "正在加载句子…"}
-                </div>
-              </div>
+          <div className="practice-loading">
+            <Spinner size="lg" />
+            <div className="practice-loading__text">
+              {count ? `正在加载 ${count} 个句子…` : "正在加载句子…"}
             </div>
           </div>
         </div>
