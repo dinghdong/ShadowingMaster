@@ -71,8 +71,25 @@ if command -v ufw >/dev/null 2>&1; then
   ufw allow 22/tcp 80/tcp 443/tcp || true
 fi
 
+# 5) Caddyfile —— 用 --domain 渲染一份初始配置。
+#    此前 --domain 只被校验、从不使用，导致引导完成后目录里没有 Caddyfile，
+#    而 compose 把它作为只读卷挂给 caddy，缺失时 caddy 起不来。
+#    CI 每次部署都会用 Secrets.DEPLOY_DOMAIN 重新渲染覆盖，这里只保证首次可用。
+sed "s/DOMAIN/$DOMAIN/g" "$SCRIPT_DIR/../Caddyfile" > "$INSTALL_DIR/Caddyfile"
+echo ">> 已写入 Caddyfile（域名 $DOMAIN）"
+
+echo
 echo ">> bootstrap 完成。"
 echo "   目录 : $INSTALL_DIR"
-echo "   域名 : $DOMAIN （部署时由 CI 写入 Caddyfile）"
-echo "   下一步: git push 到 GitHub main → deploy.yml 自动拉起。"
-echo "   手动试跑: cd $INSTALL_DIR && docker compose up -d"
+echo "   域名 : $DOMAIN"
+echo
+echo "   下一步（在 GitHub 仓库 Settings → Secrets and variables → Actions 配置）："
+echo "     VPS_HOST        本机公网 IP"
+echo "     VPS_USER        部署用 SSH 账号"
+echo "     VPS_SSH_KEY     对应私钥全文"
+echo "     DEPLOY_DOMAIN   $DOMAIN"
+echo "     BACKEND_ENV     生产 .env 全文（不要含 BACKEND_IMAGE，CI 会写）"
+echo
+echo "   配好后 push 到 main，deploy.yml 会构建镜像并自动拉起服务。"
+echo "   注意：此刻还不能手动 docker compose up —— compose 文件由 CI 投递，"
+echo "        且 BACKEND_IMAGE 需指向 GHCR 上已构建的镜像，首次部署必须走 CI。"
