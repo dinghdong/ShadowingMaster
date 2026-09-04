@@ -1,5 +1,5 @@
 import { AppState } from "../../useApp";
-import { Sentence, tokenize, compareWords } from "../../shared";
+import { Sentence, tokenize, compareWords, activeWordIndex } from "../../shared";
 import { Icon } from "../../components/Icon";
 import { ActionBtn } from "../../components/ActionBtn";
 import { CheckBtn } from "../../components/CheckBtn";
@@ -14,11 +14,7 @@ export function SentenceCard({ p, s, idx }: { p: AppState; s: Sentence; idx: num
 
   const highlightCurrent = p.wordHighlight && isCurrent && (p.practiceMode === "view" || p.practiceMode === "shadow");
   const wordCount = tokens.filter((t) => !t.space).length;
-  let activeWord = -1;
-  if (highlightCurrent) {
-    const prog = (p.playhead - s.start_time) / Math.max(0.001, s.end_time - s.start_time);
-    activeWord = Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
-  }
+  const activeWord = highlightCurrent ? activeWordIndex(s, p.playhead, wordCount) : -1;
 
   const renderEnglish = (withHighlight: boolean) => {
     let wi = -1;

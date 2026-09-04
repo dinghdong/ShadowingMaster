@@ -1,5 +1,5 @@
 import { AppState } from "../../useApp";
-import { Sentence, tokenize } from "../../shared";
+import { Sentence, tokenize, activeWordIndex } from "../../shared";
 import { ProgChips } from "./ProgChips";
 
 // ─── 右侧全句滚动列表行 ───
@@ -12,11 +12,7 @@ export function SentenceRow({ p, s, idx }: { p: AppState; s: Sentence; idx: numb
 
   const tokens = tokenize(s.english_text);
   const wordCount = tokens.filter((t) => !t.space).length;
-  let activeWord = -1;
-  if (showKaraoke) {
-    const prog = (p.playhead - s.start_time) / Math.max(0.001, s.end_time - s.start_time);
-    activeWord = Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
-  }
+  const activeWord = showKaraoke ? activeWordIndex(s, p.playhead, wordCount) : -1;
 
   const renderEn = () => {
     if (!showKaraoke) return s.english_text;
