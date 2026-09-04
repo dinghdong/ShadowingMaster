@@ -12,8 +12,19 @@ from pathlib import Path
 from typing import Optional
 
 BACKEND = Path(__file__).parent
-MEDIA = BACKEND / "media"
-DB_PATH = BACKEND.parent / "app.db"
+
+# 生产用 DATA_DIR 把 media 与 app.db 一起指向挂载卷（/data），开发期退回仓库内路径。
+# 此前这两个常量硬编码为容器内的 /app/backend/media 与 /app/app.db，而 API 侧的
+# core.config.MEDIA_DIR / core.db.DB_PATH 走的是 DATA_DIR —— 两边不一致的后果是：
+#   * 下载产物写进容器可写层，**每次重新部署即全部丢失**；
+#   * .vtt 又不在 _upload_assets 的上传清单里（只传 mp4 与封面），丢了就没有副本，
+#     backfill_word_timings 因此找不到字幕、静默跳过所有视频；
+#   * API 从 /data/media 读，导入器往别处写，只有 OSS 开启时才侥幸不出事。
+# 统一到 core 的解析结果，消除这处分叉。
+from core.config import MEDIA_DIR  # noqa: E402  （置于 BACKEND 定义后，便于上方注释就近说明）
+from core.db import DB_PATH        # noqa: E402
+
+MEDIA = MEDIA_DIR
 
 TS_RE = re.compile(r"(\d+):(\d+):(\d+)\.(\d+)")
 TAG_RE = re.compile(r"<[^>]+>")

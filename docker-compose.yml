@@ -8,7 +8,9 @@
 
 services:
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/OWNER/shadowingmaster-backend:latest}
+    # 由 .env 的 BACKEND_IMAGE 注入，CI 每次部署写入本次构建的 sha 标签。
+    # 无默认值：缺失时 compose 直接报错，好过静默拉到一个不存在的占位镜像名。
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE 未设置——应由 CI 写入 .env，手动部署请自行指定}
     restart: unless-stopped
     env_file: .env
     environment:
