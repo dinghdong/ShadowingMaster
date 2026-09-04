@@ -30,13 +30,26 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$INSTALL_DIR"
 
 # 1) Docker
+is_alinux() { [ -f /etc/alinux-release ] || grep -qi 'alinux' /etc/os-release 2>/dev/null; }
 if ! command -v docker >/dev/null 2>&1; then
   echo ">> 安装 Docker"
-  curl -fsSL https://get.docker.com | sh
+  if is_alinux; then
+    # 阿里云 Linux 是 RHEL8 兼容系，官方 get.docker.com 脚本会报
+    # "Unsupported distribution 'alinux'"。直接用 dnf/yum 装发行版自带的 docker。
+    PM=$(command -v dnf >/dev/null 2>&1 && echo dnf || echo yum)
+    $PM install -y docker
+  else
+    curl -fsSL https://get.docker.com | sh
+  fi
 fi
 if ! docker compose version >/dev/null 2>&1; then
   echo ">> 安装 compose 插件"
-  apt-get update -y && apt-get install -y docker-compose-plugin
+  if is_alinux; then
+    PM=$(command -v dnf >/dev/null 2>&1 && echo dnf || echo yum)
+    $PM install -y docker-compose-plugin
+  else
+    apt-get update -y && apt-get install -y docker-compose-plugin
+  fi
 fi
 
 # 2) .env
@@ -61,10 +74,22 @@ EOF
 fi
 
 # 3) 备份 cron（每天 04:17 伦敦时间）
+#    阿里云 Linux 默认不带 crontab，缺失时先装 cronie；整条写入用 `|| echo` 兜底，
+#    避免 `set -e` 下因 cron 不可用而中断后续（Caddyfile 渲染等）步骤。
+if ! command -v crontab >/dev/null 2>&1; then
+  echo ">> 安装 cronie"
+  if command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+    ( command -v dnf >/dev/null 2>&1 && dnf install -y cronie || yum install -y cronie ) 2>&1 | tail -5
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get update -y && apt-get install -y cron 2>&1 | tail -5
+  fi
+  systemctl enable --now crond 2>/dev/null || systemctl enable --now cron 2>/dev/null || true
+fi
 cp "$SCRIPT_DIR/backup.sh" "$INSTALL_DIR/backup.sh"
 chmod +x "$INSTALL_DIR/backup.sh"
 ( crontab -l 2>/dev/null | grep -v "$INSTALL_DIR/backup.sh"; \
-  echo "17 4 * * * /bin/bash $INSTALL_DIR/backup.sh >> $INSTALL_DIR/backup.log 2>&1" ) | crontab -
+  echo "17 4 * * * /bin/bash $INSTALL_DIR/backup.sh >> $INSTALL_DIR/backup.log 2>&1" ) | crontab - \
+  || echo "::warning:: crontab 写入失败（非致命，可手动补备份任务）"
 
 # 4) 放行端口
 if command -v ufw >/dev/null 2>&1; then
