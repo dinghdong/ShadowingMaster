@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Sentence } from "../shared";
 import { lsGet } from "./prefs";
 import { PracticeMode, isSingleSentenceMode } from "./practiceMode";
-import { smScrollLog } from "../scrollDebug";
+import { smScrollLog, smDiagLog, SM_DIAG } from "../scrollDebug";
 
 export interface PlayerDeps {
   sentences: Sentence[];
@@ -115,6 +115,7 @@ export function usePlayer(deps: PlayerDeps) {
     // 视频真实高度此时才确定（.player-frame 撑开）；若其晚于首次滚动出现，
     // 当前句会被新撑开的吸顶视频盖住半截——重滚一次当前句兜底。
     smScrollLog(`VIDEOLOADED idx=${currentIndex}`);
+    smDiagLog(`VIDEOLOADED idx=${currentIndex} readyState=${videoRef.current?.readyState} duration=${videoRef.current ? videoRef.current.duration.toFixed(1) : "n/a"}`);
     requestAnimationFrame(() => scrollToSentence(currentIndex, "auto"));
   };
 
@@ -140,6 +141,7 @@ export function usePlayer(deps: PlayerDeps) {
       if (last >= 0 && Math.abs(h - last) < 2) return; // 忽略细微抖动，避免无谓重滚
         last = h;
         smScrollLog(`RO barH=${h.toFixed(0)} idx=${currentIndexRef.current}`);
+        smDiagLog(`RO-RESCROLL barH=${h.toFixed(0)} idx=${currentIndexRef.current}`);
         requestAnimationFrame(() => scrollToSentenceRef.current(currentIndexRef.current, "auto"));
       });
       ro.observe(bar);
@@ -152,7 +154,10 @@ export function usePlayer(deps: PlayerDeps) {
   const handleTimeUpdate = (t: number, paused: boolean) => {
     const v = videoRef.current;
     setPlayhead(t);
-    if (!v || paused) return;
+    if (!v || paused) {
+      if (SM_DIAG) smDiagLog(`TIMEUPDATE t=${t.toFixed(2)} paused=${paused} seeking=${v?.seeking} currentIndex=${currentIndex} (skipped: ${!v ? "no video" : "paused"})`);
+      return;
+    }
     const end = playEndRef.current;
     if (end != null && t >= end) {
       // 单句播放（每句▶/跟读重播）到句末：循环或自停
@@ -176,14 +181,21 @@ export function usePlayer(deps: PlayerDeps) {
     }
     // 连续播放：当前句高亮跟随播放头
     const idx = sentences.findIndex((s) => t >= s.start_time && t < s.end_time);
-    if (idx >= 0 && idx !== currentIndex) {
+    // 读 ref 而非闭包里的 currentIndex：rAF 每帧都调用本函数，而 setCurrentIndex 要到
+    // 下次重渲染才反映到闭包上。中间这几帧若继续读旧值，会把同一句重复上报 / 重复滚动。
+    // ref 在每次渲染时由 currentIndex 同步回来（见上方），故用户手动切句后依然准确。
+    const cur = currentIndexRef.current;
+    if (SM_DIAG) smDiagLog(`TIMEUPDATE t=${t.toFixed(2)} seeking=${v.seeking} currentIndex=${cur} detectedIdx=${idx} (${idx >= 0 && idx !== cur ? "WILL-SWITCH" : "no-op"})`);
+    if (idx >= 0 && idx !== cur) {
       // 1) seek 进行中：t 不可信，整段跳过（既防高亮乱跳也防抖动）
       if (v.seeking) return;
       // 2) seek 刚结束的边界误判：浏览器回报的 t 略小于 start_T（浮点），被严格 <end 归到上一句，
       //    表现为 idx === currentIndex-1。此时 currentIndex 已是目标句，跳过即可，避免滚回上一句抖动。
-      if (idx === currentIndex - 1) return;
+      if (idx === cur - 1) return;
+      currentIndexRef.current = idx;  // 同步占位，去重后续帧
       setCurrentIndex(idx);
       reportPosition(idx);
+      smDiagLog(`AUTO-FOLLOW setCurrentIndex=${idx} (was ${cur}) start=${sentences[idx]?.start_time}`);
       // 自动跟随：用 instant（auto）滚动，避免真机 smooth scroll 被高频重入取消/重启导致落点漂移
       // （真机浏览器 smooth 重入不可靠，桌面模拟器仅偶发；这是真机 100% 半截显示的根因）。
       // 用户主动导航（点击/上下句）仍走 smooth，见 goSentence / 进页定位。
@@ -191,6 +203,29 @@ export function usePlayer(deps: PlayerDeps) {
       requestAnimationFrame(() => scrollToSentence(idx, "auto"));
     }
   };
+
+  // rAF 始终调用最新一次渲染产生的 handleTimeUpdate，避免闭包里的 sentences /
+  // currentSentence / practiceMode 过期（effect 依赖只有 isPlaying，不随渲染重挂）。
+  const handleTimeUpdateRef = useRef(handleTimeUpdate);
+  handleTimeUpdateRef.current = handleTimeUpdate;
+
+  // 卡拉OK精度：<video> 的 timeupdate 由浏览器实现自行节流，实测约 250ms 一次(4Hz)。
+  // 而字幕轨里真实词长中位数只有 240ms、55% 的词短于 250ms —— 词的存活时间比采样间隔
+  // 还短，高亮只能整词整词地跳过去（按库内 33568 个词模拟：17.5% 的词从未被点亮）。
+  // 播放期间改由 rAF 按屏幕刷新率(~16.7ms)读 currentTime 驱动，同口径模拟漏词率 0.1%。
+  // 顺带把单句自停/循环的判定也提到同一精度：原先句末最多晚 250ms 才刹车。
+  // 暂停与 seek 期间 rAF 不跑，仍由 <video> 的 timeupdate 兜底（seek 时它照常触发）。
+  useEffect(() => {
+    if (!isPlaying) return;
+    let raf = 0;
+    const tick = () => {
+      const v = videoRef.current;
+      if (v) handleTimeUpdateRef.current(v.currentTime, v.paused);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying]);
 
   return {
     videoRef, playEndRef, loopSingleRef, suppressLoopRef, pendingPlayRef,

@@ -11,6 +11,18 @@ export const SM_SCROLL_DEBUG =
   (new URLSearchParams(window.location.search).has("scrolllog") ||
     window.localStorage.getItem("smScrollDebug") === "1");
 
+// 通用诊断开关（定位「字幕定位到 200+ 句 / 每次刷新位置不同」问题时加）。
+// 开启：URL 加 ?diag=1 或 localStorage.smDiag='1' 后刷新。关闭：去掉 / 置空后刷新。
+export const SM_DIAG =
+  typeof window !== "undefined" &&
+  (new URLSearchParams(window.location.search).has("diag") ||
+    window.localStorage.getItem("smDiag") === "1");
+
+export function smDiagLog(line: string): void {
+  if (!SM_DIAG) return;
+  console.log("[SM-DIAG] " + line);
+}
+
 let __smHud: HTMLDivElement | null = null;
 
 export function smScrollLog(line: string): void {

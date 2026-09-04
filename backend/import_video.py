@@ -67,6 +67,10 @@ def parse_vtt(path: Path, full_text: bool = False):
     """
     chunks = []
     lines = path.read_text(encoding="utf-8").splitlines()
+    # 轨内出现卡拉OK时间戳 → YouTube 滚动式自动字幕。这类轨里夹着大量 10ms 的
+    # 「桥接帧」（如 00:00:01.790 --> 00:00:01.800），整条 cue 只把上一行滚上去、
+    # 没有带标签的新词行；若回退到拼接 cue_lines 就会把上一条的词再收一遍。
+    rolling = any(KARAOKE_TS_RE.search(l) for l in lines)
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -94,6 +98,10 @@ def parse_vtt(path: Path, full_text: bool = False):
                 text = join_texts(cue_lines)
             elif new_line.strip():
                 text = new_line.strip()
+            elif rolling:
+                # 滚动轨的桥接/翻页帧：无新词行 = 无新内容，整条丢弃。
+                # 否则会产出 "many many a many many a person struggle with" 这类重复。
+                text = ""
             elif cue_lines:
                 text = " ".join(cue_lines)
             else:
@@ -105,6 +113,87 @@ def parse_vtt(path: Path, full_text: bool = False):
     return chunks
 
 
+KARAOKE_TS_RE = re.compile(r"<(\d\d:\d\d:\d\d\.\d+)>")
+
+
+def _word_dur(w: str) -> float:
+    """末词时长估算（秒）：按字符数线性外推，约 12 字符/秒 + 起停开销。
+
+    只在**没有下一个词可以界定收尾**时使用。不能直接拿 cue 结束时间当末词结尾——
+    说完后字幕常挂在屏幕上等转场音乐走完（实测有 cue 说完 0.4s、却挂满 14s），
+    照搬会把句子的 end_time 推到音乐里去。
+    """
+    return min(1.2, max(0.20, 0.085 * len(w) + 0.15))
+
+
+def _line_word_times(line: str, cue_st: float, cue_en: float):
+    """一行带卡拉OK标签的字幕 → [(t0, word), ...]。
+
+    形如：front<00:00:07.560><c> of</c><00:00:07.680><c> you</c>
+    时间戳标记的是其**后面**内容的起点；行首那段没有标签，用 cue 起点。
+    单个标签内偶尔含多词（<c> the thing</c>），段内按词数均分。
+    """
+    parts = KARAOKE_TS_RE.split(line)
+    segs = []
+    head = clean_text(parts[0]).strip()
+    if head:
+        segs.append((cue_st, head))
+    j = 1
+    while j + 1 < len(parts):
+        segs.append((ts_to_sec(parts[j]), clean_text(parts[j + 1]).strip()))
+        j += 2
+
+    out = []
+    for k, (t, text) in enumerate(segs):
+        ws = text.split()
+        if not ws:
+            continue
+        nxt = segs[k + 1][0] if k + 1 < len(segs) else cue_en
+        span = max(nxt - t, 0.0)
+        for m, w in enumerate(ws):
+            out.append((t + span * m / len(ws), w))
+    return out
+
+
+def parse_vtt_words(path: Path):
+    """从 YouTube 自动字幕抽**真实**词级时间戳 → [(t0, t1, word), ...]。
+
+    轨内完全没有卡拉OK标签（人工字幕 / TED 等）时返回 None，
+    由 merge_sentences 回退到 words_stream() 的 cue 内线性插值。
+
+    每个词的 t1 取「下一个词的起点」与「按词长估算的收尾」中较小者：
+    前者保证不越界，后者保证句末不会被拖进转场音乐里。
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    raw = []  # [(t0, word, cue_en)]
+    i = 0
+    while i < len(lines):
+        if "-->" not in lines[i]:
+            i += 1
+            continue
+        start_s, end_s = [t.strip() for t in lines[i].split("-->")[:2]]
+        cue_st, cue_en = ts_to_sec(start_s), ts_to_sec(end_s.split()[0])
+        i += 1
+        while i < len(lines) and lines[i] != "":
+            line = lines[i]
+            i += 1
+            if not KARAOKE_TS_RE.search(line):
+                continue  # 无标签行 = 滚动上来的旧内容
+            for t0, w in _line_word_times(line, cue_st, cue_en):
+                raw.append((t0, w, cue_en))
+    if not raw:
+        return None
+
+    out = []
+    for k, (t0, w, cue_en) in enumerate(raw):
+        limit = raw[k + 1][0] if k + 1 < len(raw) else cue_en
+        t1 = t0 + _word_dur(w)
+        if limit > t0:
+            t1 = min(t1, limit)
+        out.append((t0, max(t1, t0 + 0.01), w))  # 只保证非零长度，不越过下一个词
+    return out
+
+
 TERMINAL = (".", "?", "!", "…")
 
 
@@ -114,35 +203,59 @@ def ends_sentence(word: str) -> bool:
 
 
 def words_stream(chunks):
-    """词块展平成词流；块内按词序线性插值得到每个词的近似时间。"""
+    """词块展平成词流 [(t0, t1, word)]；块内按词序线性插值。
+
+    ⚠️ 这是**没有真实词级时间戳时**的回退方案：它假设一条 cue 内每个词等时长，
+    真人说话并非匀速（同一条 cue 里相邻两词可能停顿 1s 以上），且 cue 常在说完后
+    仍挂着等转场音乐，所以精度有限。有 <ts><c> 标签的轨请走 parse_vtt_words()。
+    """
     words = []
     for start, end, text in chunks:
         ws = text.split()
         if not ws:
             continue
         span = max(end - start, 0.3)
+        step = span / len(ws)
         for i, w in enumerate(ws):
-            words.append((start + span * i / len(ws), w))
+            words.append((start + step * i, start + step * (i + 1), w))
     return words
 
 
-def merge_sentences(chunks, max_gap=3.0):
+def merge_sentences(chunks, words=None, max_gap=3.0):
     """分句：源字幕带标点时按标点断句（高上限防呆）；无标点（纯自动字幕）回退到词数/时长规则。
-    最后把不足 3 词的碎片并入前一句（前一句本身不是完整句时）。"""
-    words = words_stream(chunks)
+    最后把不足 3 词的碎片并入前一句（前一句本身不是完整句时）。
+
+    words：词流 [(t0, t1, word)]。优先传 parse_vtt_words() 抽出的**真实**词级时间戳；
+    None 时回退到 words_stream() 的 cue 内线性插值。
+
+    返回 [(start, end, text, timings)]。timings 是该句每个词的 [t0, t1]（绝对秒），
+    与 text.split() 严格一一对应，落库后供前端卡拉OK逐词高亮。
+    **words 为 None 时 timings 一律为 None**（等分插值不冒充实测值，理由见函数体注释）。
+
+    end 取末词的**结束**时间（旧实现取的是末词起点再补 0.4s 固定尾巴，既截掉了末词
+    本身的时长，又在末词被拖长时对不上）。
+    """
+    # words is None → 只有 words_stream() 的 cue 内等分插值可用。它仍然拿来**分句**
+    # （句子边界靠词流的时间间隔与标点推断），但绝不能当作 word_timings 落库：
+    # 前端一旦看到 word_timings 存在且长度匹配，就会关掉线性回退、完全信任它做逐词高亮
+    # （见 shared.ts 的 activeWordIndex），于是等分插值被当成实测数据用——句首准、句尾飘。
+    # 这比没有数据更糟：word_timings 为 NULL 时前端自己插值，至少是诚实的近似，
+    # 而且日后能一眼看出哪些视频还缺真实时间戳。
+    real_timings = words is not None
+    words = words if words is not None else words_stream(chunks)
     if not words:
         return []
-    punct_ratio = sum(1 for _, w in words if ends_sentence(w)) / len(words)
+    punct_ratio = sum(1 for _, _, w in words if ends_sentence(w)) / len(words)
     punctuated = punct_ratio > 0.04
     max_words, max_span = (25, 15.0) if punctuated else (10, 9.0)
 
     sents, buf = [], []
-    for t, w in words:
-        if buf and (t - buf[-1][0]) > max_gap:
+    for t0, t1, w in words:
+        if buf and (t0 - buf[-1][0]) > max_gap:
             sents.append(buf)
             buf = []
-        buf.append((t, w))
-        if ends_sentence(w) or len(buf) >= max_words or (t - buf[0][0]) >= max_span:
+        buf.append((t0, t1, w))
+        if ends_sentence(w) or len(buf) >= max_words or (t0 - buf[0][0]) >= max_span:
             sents.append(buf)
             buf = []
     if buf:
@@ -150,13 +263,236 @@ def merge_sentences(chunks, max_gap=3.0):
 
     out = []
     for b in sents:
-        text = " ".join(w for _, w in b)
-        if out and len(b) < 3 and not ends_sentence(out[-1][2].split()[-1]):
-            ps, pe, pt = out.pop()
-            out.append((ps, b[-1][0], f"{pt} {text}"))
+        if not b:
+            continue
+        text = " ".join(w for _, _, w in b)
+        tim = [[round(t0, 3), round(t1, 3)] for t0, t1, _ in b]
+        if out and len(b) < 3 and out[-1][2] and not ends_sentence(out[-1][2].split()[-1]):
+            ps, _pe, pt, ptim = out.pop()
+            out.append((ps, b[-1][1], f"{pt} {text}", ptim + tim))
         else:
-            out.append((b[0][0], b[-1][0], text))
-    return [(st, en + 0.4, t[0].upper() + t[1:]) for st, en, t in out]  # 句末留 0.4s 尾巴，避免最后一个词被截
+            out.append((b[0][0], b[-1][1], text, tim))
+    # 首字母大写不改变词数，timings 与 text.split() 仍一一对应
+    return [(st, en, t[0].upper() + t[1:], tim if real_timings else None)
+            for st, en, t, tim in out if t]
+
+
+def _split_karaoke_line(line: str, cue_st: float, cue_en: float):
+    """把带卡拉OK时间戳的行切成 [(t0, t1, 文本), ...]。
+
+    形如：清洗<00:00:00.493><c>奶酪刨</c><00:00:00.826><c>丝器</c>
+    时间戳标记的是其后内容的**开始**，因此第 i 段的区间 = [ts_i, ts_{i+1})，
+    末段收尾于 cue 结束时间。
+    """
+    toks = re.split(r"<(\d\d:\d\d:\d\d\.\d+)>", line)
+    if len(toks) < 3:  # 无时间戳 → 整行按 cue 跨度处理
+        return [(cue_st, cue_en, line)]
+
+    marks = []
+    i = 1
+    while i + 1 < len(toks):
+        marks.append((ts_to_sec(toks[i]), toks[i + 1]))
+        i += 2
+
+    segs = []
+    if toks[0].strip():
+        segs.append((cue_st, marks[0][0], toks[0]))
+    for j, (ts, body) in enumerate(marks):
+        t1 = marks[j + 1][0] if j + 1 < len(marks) else cue_en
+        if body.strip():
+            segs.append((ts, t1, body))
+    return segs
+
+
+# 单独的括号/引号片段：滚动轨把 "[笑声]" 拆成 '[' '笑声' ']' 三帧逐词推进，
+# 逐帧清洗时 BRACKET_RE 匹配不到完整括号，会留下 '[笑声'、']xxx' 这类残片。
+STRAY_BRACKET_RE = re.compile(r"^[\[\]\(\)（）【】「」<>]+$")
+# 音效/现场提示：非台词内容。英文原文里就有 "(Laughter)"，中文侧再带一遍是冗余，
+# 且被滚动帧拆散后会变成 "[音乐就" 这类残片混进译文 → 整帧丢弃。
+SOUND_RE = re.compile(
+    r"^[\[\(（【]?\s*(音乐|音乐声|笑声|掌声|欢呼|鼓掌|咳嗽|噪声|背景音|"
+    r"Music|Laughter|Applause|Cheering|Noise)\s*[\]\)）】]?[.!?。…]*$",
+    re.IGNORECASE,
+)
+
+
+def parse_zh_timed(path: Path):
+    """解析中文译文轨 → [(start, end, 文本), ...]，切到「新内容」粒度并带精确时间戳。
+
+    中文轨是**双行滚动窗口**：line1 = 上一行旧内容，line2 = 本行新内容。
+    所以只取最后一行（line2）—— 旧内容已在它自己那条 cue 里收过了，再取就是重复。
+    line2 为空白说明这条 cue 只是把上一行滚上去，没有新内容，直接跳过。
+
+    line2 常带卡拉OK时间戳，可切到词组粒度；无标签时退回 cue 跨度。
+
+    ⚠️ 必须**逐行**解析，不能用 re.split(r"\\n\\s*\\n") 分块：滚动轨的 line2 经常是
+    单个空格 " "，贪婪的 \\s* 会把 " \\n\\n" 整段当成块分隔符吞掉，于是 content[-1]
+    退化为 line1（旧内容）→ 每条 cue 的新内容被重复收两次（线上表现为
+    「清洗奶酪刨丝器简直是一场清洗奶酪刨丝器简直是一场噩梦」）。
+
+    返回按时间排序、互不重叠的片段，供 align_chinese 一对一归属到英文句。
+    """
+    lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    out = []
+    i = 0
+    while i < len(lines):
+        if "-->" not in lines[i]:
+            i += 1
+            continue
+        head = lines[i]
+        start_s, end_s = [t.strip() for t in head.split("-->")[:2]]
+        end_s = end_s.split()[0]  # 去掉 align:start 等后缀
+        st, en = ts_to_sec(start_s), ts_to_sec(end_s)
+        i += 1
+        # cue 以**严格空行**结尾；纯空白行（" "）是滚动轨的有效内容行，必须保留
+        body = []
+        while i < len(lines) and lines[i] != "":
+            body.append(lines[i])
+            i += 1
+        if not body:
+            continue
+        new_line = body[-1]
+        if not new_line.strip():
+            continue  # 纯滚动帧（line2 空白），无新内容
+        for t0, t1, txt in _split_karaoke_line(new_line, st, en):
+            clean = clean_text(txt)
+            if not clean or SKIP_RE.match(clean) or CREDITS_RE.match(clean):
+                continue
+            if STRAY_BRACKET_RE.match(clean) or SOUND_RE.match(clean):
+                continue  # '[' / ']' 等孤立括号残片、[笑声]/[音乐] 等音效帧
+            # 括号被滚动帧拆到不同帧时，单帧里只剩半边括号（如 "，[就"），直接剥掉
+            if ("[" in clean) != ("]" in clean):
+                clean = clean.replace("[", "").replace("]", "").strip()
+            out.append((t0, t1, clean))
+    out.sort(key=lambda c: c[0])
+    return out
+
+
+def dedup_rolling(texts):
+    """滚动字幕去重：部分译文轨是「双行滚动窗口」（line1 = 上一行旧内容，line2 = 本行新内容），
+    相邻 cue 会重复携带旧行。若把 cue 全文直接按时间序拼接，译文会出现
+    「清洗奶酪刨丝器简直是一场清洗奶酪刨丝器简直是一场噩梦」这类重复。
+
+    做法：对时间序上相邻的 cue，把「与已累积译文尾部重合的前缀」视为滚动下来的旧内容，
+    只保留增量后缀。非滚动轨（相邻 cue 无文本重叠）不会被误伤。
+
+    安全阈值：只剥离长度 ≥2 的重合片段，避免单字巧合（如「的」）吃掉真实内容。
+    """
+    kept, acc = [], ""
+    for t in texts:
+        t = (t or "").strip()
+        if not t:
+            continue
+        k = 0
+        if acc:
+            for i in range(min(len(acc), len(t)), 1, -1):
+                if acc.endswith(t[:i]):
+                    k = i
+                    break
+        rest = t[k:].strip()
+        if rest:
+            kept.append(rest)
+            acc = join_texts(kept)
+    return kept
+
+
+CJK_TERMINAL = "。？！…．?!;"
+
+
+def _zh_units(zh_chunks):
+    """把细粒度中文字幕片段按句末标点聚成「中文句」→ [(start, end, 文本), ...]。
+
+    滚动轨把「。」也作为独立的一帧推出来（如 '是' '的' '。' 三帧），所以必须按
+    **标点**重新聚合，否则单看片段无法判断句子边界。每条 unit 以遇到句末标点收尾，
+    未收尾的尾巴（正在滚动显示中的半句）也保留，避免丢字。
+    """
+    units, buf = [], []
+    for st, en, text in zh_chunks:
+        buf.append((st, en, text))
+        if text and text[-1] in CJK_TERMINAL:
+            units.append((buf[0][0], buf[-1][1], join_texts([t for _, _, t in buf]), list(buf)))
+            buf = []
+    if buf:
+        units.append((buf[0][0], buf[-1][1], join_texts([t for _, _, t in buf]), list(buf)))
+    return units
+
+
+def _dp_assign(units, sents, gap=0.6):
+    """单调 DP：把中文句分配到英文句，最大化「时间中心接近度」并惩罚空句。
+
+    为什么用 DP 而不是逐句贪心：两轨都有 ±0.3s 抖动，且滚动 CC 轨相邻英文句的
+    时间区间互相重叠（窗口里同时显示上下两行）。贪心在长英文句处会一路吞掉属于
+    下一句的译文，表现为「上一句译文拖个尾巴、下一句整句为空」。
+
+    DP 的三个转移（i=英文句, j=中文句）：
+      1. 本句以 unit j 开头  dp[i-1][j-1] + score
+      2. 本句续接 unit j     dp[i][j-1]   + score
+      3. 本句留空            dp[i-1][j]   - gap
+    score = -|unit 时间中心 - 英文句时间中心|（秒）。gap 让「留白」有代价，
+    从而在长句处自然让位给后续句子，而不是一路吞并。
+    """
+    n, m = len(units), len(sents)
+    ucen = [(u[0] + u[1]) / 2.0 for u in units]
+    ecen = [(a + b) / 2.0 for a, b, *_ in sents]
+    NEG = float("-inf")
+    dp = [[NEG] * (n + 1) for _ in range(m + 1)]
+    bk = [[0] * (n + 1) for _ in range(m + 1)]
+    dp[0][0] = 0.0
+    for i in range(1, m + 1):
+        dp[i][0] = dp[i - 1][0] - gap
+    for i in range(1, m + 1):
+        dpi, dpim1, bki = dp[i], dp[i - 1], bk[i]
+        ei = ecen[i - 1]
+        for j in range(1, n + 1):
+            sc = -abs(ucen[j - 1] - ei)
+            best, code = dpim1[j - 1] + sc, 1
+            cont = dpi[j - 1] + sc
+            if cont > best:
+                best, code = cont, 2
+            skip = dpim1[j] - gap
+            if skip > best:
+                best, code = skip, 0
+            dpi[j] = best
+            bki[j] = code
+    assign = [[] for _ in range(m)]
+    i, j = m, n
+    while i > 0 and j > 0:
+        code = bk[i][j]
+        if code == 0:
+            i -= 1
+            continue
+        assign[i - 1].append(j - 1)
+        j -= 1
+        if code == 1:
+            i -= 1
+    return assign
+
+
+def _spill_targets(i, ust, uen, sents):
+    """某条中文句（unit）除了 DP 指定的英文句 i 之外，还真正「覆盖」了哪些英文句。
+
+    判据：unit 的时间区间覆盖该英文句时长的 ≥50% **且** ≥0.6s。加绝对下限是因为短句
+    （<1.2s，对话类视频很常见）上 50% 判据会被 ±0.3s 的边界抖动触发，把一句话的译文
+    劈成两半（实测出现「是」/「的。」这种碎片）。
+    """
+    targets = [i]
+    k = i + 1
+    while k < len(sents):
+        st, en = sents[k][0], sents[k][1]
+        if st >= uen:
+            break
+        if min(uen, en) - max(ust, st) >= max(0.5 * (en - st), 0.6):
+            targets.append(k)
+        k += 1
+    k = i - 1
+    while k >= 0:
+        st, en = sents[k][0], sents[k][1]
+        if en <= ust:
+            break
+        if min(uen, en) - max(ust, st) >= max(0.5 * (en - st), 0.6):
+            targets.insert(0, k)
+        k -= 1
+    return targets
 
 
 def align_chinese(sents, zh_chunks):
@@ -170,28 +506,56 @@ def align_chinese(sents, zh_chunks):
     """
     if not zh_chunks:
         return []
-    out = []
-    for st, en, _text in sents:
-        # 只算重叠时长，再按阈值筛掉「擦边」的邻居 cue：英文句边界是我们自己合并出来的，
-        # 常与中文 cue 差 0.1~0.3s，若不过滤会把上/下一句译文的尾巴也拼进来。
-        cands = []
+
+    units = _zh_units(zh_chunks)
+    buckets = [[] for _ in sents]
+
+    if units and len(units) * len(sents) <= 3_000_000:
+        # 主干路径：先按句末标点把中文聚成「句」，再做单调 DP 对齐。
+        #
+        # 为什么不能只按时间归属？滚动字幕轨（CC）的相邻英文句时间区间是**互相重叠**的
+        # （窗口里同时显示上下两行），且中英两轨各自有 ±0.3s 抖动。按中点/最大重叠归属
+        # 会把「下一句的开头」判给上一句，表现为译文句首多一个字、下一句少一个字。
+        for i, uidxs in enumerate(_dp_assign(units, sents)):
+            for uid in uidxs:
+                ust, uen, utext, frags = units[uid]
+                targets = _spill_targets(i, ust, uen, sents)
+                if len(targets) == 1:
+                    buckets[i].append((ust, utext))
+                    continue
+                # 译文常把相邻两句用「，」连成一条 unit，而英文仍切成两句 →
+                # unit 内退回到片段级，按时间重叠分给各自那一句。
+                for fst, fen, ftext in frags:
+                    best_k, best_ov = i, None
+                    for k in targets:
+                        ov = min(fen, sents[k][1]) - max(fst, sents[k][0])
+                        if best_ov is None or ov > best_ov:
+                            best_k, best_ov = k, ov
+                    buckets[best_k].append((fst, ftext))
+    else:
+        # 兜底：中文句数与英文句数差得远（译文轨缺段、或英文字幕本就未按句合并），
+        # 仍按时间一对一归属，保证每个片段只进一句、不重复。
         for zst, zen, ztext in zh_chunks:
-            ov = min(en, zen) - max(st, zst)
-            if ov > 0:
-                cands.append((ov, zst, ztext))
-        if cands:
-            thr = min(0.35, (en - st) * 0.15)
-            keep = [c for c in cands if c[0] >= thr] or [max(cands)]
-            keep.sort(key=lambda c: c[1])  # 按时间序拼接
-            out.append(join_texts([t for _, _, t in keep]))
-        else:
-            mid = (st + en) / 2
-            best, best_d = "", None
-            for zst, zen, ztext in zh_chunks:
-                d = 0.0 if zst <= mid <= zen else min(abs(zst - mid), abs(zen - mid))
-                if best_d is None or d < best_d:
-                    best, best_d = ztext, d
-            out.append(best)
+            mid = (zst + zen) / 2
+            hit = None
+            for i, (st, en, *_) in enumerate(sents):
+                if st <= mid <= en:
+                    hit = i
+                    break
+            if hit is None:
+                best_i, best_d = None, None
+                for i, (st, en, *_) in enumerate(sents):
+                    d = abs((st + en) / 2 - mid)
+                    if best_d is None or d < best_d:
+                        best_i, best_d = i, d
+                hit = best_i
+            buckets[hit].append((zst, ztext))
+
+    out = []
+    for items in buckets:
+        items.sort()  # 按时间序
+        # 兜底去重：个别轨的 line2 仍可能重复携带上一行
+        out.append(join_texts(dedup_rolling([t for _, t in items])))
     return out
 
 
@@ -225,7 +589,11 @@ def ingest(youtube_id: str, title: str, duration: Optional[int] = None, descript
             "通常是 yt-dlp 未成功下载完整视频或英文字幕，请检查下载阶段日志。"
         )
 
-    sents = merge_sentences(parse_vtt(vtt))
+    # 优先用字幕轨自带的真实词级时间戳（YouTube 自动字幕的 <ts><c> 标签）；
+    # 人工字幕轨没有标签 → parse_vtt_words 返回 None → 回退 cue 内线性插值。
+    word_stream = parse_vtt_words(vtt)
+    sents = merge_sentences(parse_vtt(vtt), words=word_stream)
+    print(f"词级时间戳：{'真实（' + str(len(word_stream)) + ' 词）' if word_stream else '无标签轨，回退线性插值'}")
     if duration is None:
         duration = probe_duration(mp4) or 0
 
@@ -259,14 +627,17 @@ def ingest(youtube_id: str, title: str, duration: Optional[int] = None, descript
     )
     vid = cur.lastrowid
     conn.executemany(
-        "INSERT INTO sentences (video_id, sentence_index, start_time, end_time, english_text, chinese_text) VALUES (?,?,?,?,?,?)",
-        [(vid, idx, st, en, text, (zh_map[idx] if idx < len(zh_map) else None))
-         for idx, (st, en, text) in enumerate(sents)],
+        "INSERT INTO sentences (video_id, sentence_index, start_time, end_time, english_text, chinese_text, word_timings) VALUES (?,?,?,?,?,?,?)",
+        # tim 为 None（无真实词级时间戳）时写 SQL NULL，不能走 json.dumps —— 它会产出
+        # 字符串 "null"，前端拿到的就是个非空值，反而绕过了回退判断。
+        [(vid, idx, st, en, text, (zh_map[idx] if idx < len(zh_map) else None),
+          json.dumps(tim, separators=(",", ":")) if tim else None)
+         for idx, (st, en, text, tim) in enumerate(sents)],
     )
     conn.commit()
     conn.close()
     print(f"导入完成：video_id={vid}，{len(sents)} 句，时长 {duration}s")
-    for st, en, t in sents[:5]:
+    for st, en, t, _tim in sents[:5]:
         print(f"  [{st:6.1f}-{en:6.1f}] {t}")
     return vid
 
