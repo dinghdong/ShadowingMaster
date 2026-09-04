@@ -73,5 +73,12 @@ Browser
 - `docker-compose.yml` / `Caddyfile` — VPS 上的服务编排与反代
 - `.github/workflows/ci.yml` — PR：前端 lint/build + 后端镜像构建校验 + 后端模块导入冒烟
 - `.github/workflows/deploy.yml` — push main 自动部署；`workflow_dispatch` 手动部署/回滚
-- `scripts/bootstrap-vps.sh` / `scripts/backup.sh` — VPS 引导与备份
-- `backend/.dockerignore`、`backend/Dockerfile` — 镜像构建
+- `scripts/bootstrap-vps.sh` / `scripts/backup.sh` / `scripts/setup-deploy.sh` — VPS 引导、备份、本机一键配置
+- `backend/Dockerfile` + 仓库根 `.dockerignore` — 镜像构建
+
+> **构建上下文是仓库根目录，不是 `backend/`。** `backend/requirements.txt` 里有
+> `-e ../packages/proxy_auto`，以 `backend/` 作上下文时 pip 找不到该目录，会直接报
+> `not a valid editable requirement` 把构建打掉。正确姿势：
+> `docker build -f backend/Dockerfile .`（CI 里两个 workflow 都已按此配置）。
+> 根 `.dockerignore` 负责把 `backend/media`（本机近 700MB）、前端 `node_modules`、
+> 设计稿与本地数据库挡在上下文之外。

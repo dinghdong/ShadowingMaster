@@ -23,3 +23,6 @@ app.db-shm
 app.db.bak-*
 .vercel
 .env*
+
+# 临时导入/排查产物（视频、字幕、SQL 转储），仅本机一次性使用，体积几十 MB
+.tmp_video31_backup/

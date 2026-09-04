@@ -1,10 +1,19 @@
 # ShadowingMaster —— Caddy 反向代理 + 自动 TLS
-# 部署时由 CI 把 DOMAIN 替换为真实域名（如 api.shadowingmaster.com）后下发到 VPS。
-# Caddy 自动向 Let's Encrypt 申请/续期证书，无需手动管理。
+#
+# 部署时由 CI 把下面站点块里的占位主机名替换成真实主机名（如
+# api.shadowingmaster.genisource.studio）后下发到 VPS。Caddy 自动向
+# Let's Encrypt 申请/续期证书，无需手动管理。
+#
+# 两条维护约定（都踩过）：
+#   1. 注释里不要出现那个大写占位符本身 —— CI 用的是全局 sed，注释里的同名文本
+#      也会被一起换掉，无害但很费解。
+#   2. 占位符要填**完整主机名**，不要再补 api. 前缀：GitHub Secrets 里配的部署域名
+#      已经是 api.<domain>，模板再写死一次会渲染成 api.api.<domain> ——
+#      DNS 无此记录，证书申请失败，探活永远卡在公网检查那一步。
 #
 # 本地开发不需要本文件（前端直连 localhost:8000）。
 
-api.DOMAIN {
+DOMAIN {
     encode gzip
     # 反向代理到同 compose 网络的 backend 容器
     reverse_proxy backend:8000

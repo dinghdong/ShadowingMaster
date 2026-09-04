@@ -22,6 +22,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 五个 Secrets 缺任意一个，后面 scp/ssh 会连到空主机、或者写一份只有
+      # BACKEND_IMAGE 的 .env 让应用带着默认密钥上线 —— 报错信息都指不到真正的
+      # 原因（「Secrets 没配」）。这里一次性点名，省一轮排查。
+      - name: Guard required secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+        run: |
+          miss=0
+          for v in VPS_HOST VPS_USER VPS_SSH_KEY DEPLOY_DOMAIN BACKEND_ENV; do
+            [ -n "${!v}" ] || { echo "ERROR: Secrets.$v 未配置"; miss=1; }
+          done
+          [ "$miss" = 0 ] || { echo "请在 Settings → Secrets and variables → Actions 补齐后重跑"; exit 1; }
+          echo "5 个 Secrets 均已配置"
+
       # GHCR 拒绝含大写字母的镜像名（invalid reference format: repository name must
       # be lowercase）。本仓库是 dinghdong/ShadowingMaster，直接用 github.repository
       # 会在 push 阶段失败，故先转成小写。
@@ -54,11 +72,14 @@ jobs:
       # 同时打 latest 与 sha-<commit>：latest 供日常拉取，sha 标签是不可变引用，
       # 出问题时可直接把 .env 里的 BACKEND_IMAGE 指到上一个已知良好的 sha 回滚，
       # 不必重新构建（此前只有 latest，回滚需手动找 digest）。
+      # 构建上下文必须是仓库根：requirements.txt 里的 -e ../packages/proxy_auto
+      # 需要 packages/ 在上下文内，用 ./backend 作上下文 pip 会直接失败。
       - name: Build & push image
         if: steps.img.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: .
+          file: ./backend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ steps.img.outputs.repo }}/backend:latest
@@ -67,15 +88,39 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Render Caddyfile (inject domain)
-        run: sed "s/DOMAIN/${{ secrets.DEPLOY_DOMAIN }}/g" Caddyfile > Caddyfile.rendered
+        env:
+          # 走 env 而不是把 secret 直接内插进 sed 表达式：值里出现 & 或 / 会
+          # 破坏替换，出现 $ 会被 shell 二次解释。
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+        run: sed "s/DOMAIN/$DEPLOY_DOMAIN/g" Caddyfile > Caddyfile.rendered
 
-      - name: Ship compose + Caddyfile to VPS
+      # 在 runner 上把运行时 .env 拼好再 scp 过去，而不是在远程 shell 里
+      # printf "$SECRET" —— 后者等于把 secret 交给远程 shell 二次解析：值里的
+      # $ ` " \ 会被展开、截断甚至当命令执行。随机密钥很容易撞上这些字符，且是
+      # 静默改值，要到「线上签发/校验失败」才暴露。本地渲染只有一层 shell，改值
+      # 只会改文件。文件名不带前导点：scp-action 对隐藏文件的匹配不稳定。
+      - name: Render runtime .env
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+        run: |
+          printf '%s\n' "$BACKEND_ENV" > env.rendered
+          # 固定到本次构建的不可变 sha 标签，而非 latest：latest 会被下次构建覆盖，
+          # 导致「重启一次容器就悄悄换了版本」。用 sha 标签则 compose 记录的就是
+          # 确切版本，回滚只需把这一行改回上一个 sha 再 up -d。
+          sed -i '/^BACKEND_IMAGE=/d' env.rendered
+          echo "BACKEND_IMAGE=ghcr.io/${{ steps.img.outputs.repo }}/backend:${{ steps.img.outputs.tag }}" >> env.rendered
+          # 占位/缺失密钥不会让部署失败，只会让所有人拿到可伪造的 token —— 点一下名。
+          if ! grep -qE '^SECRET_KEY=.+' env.rendered || grep -qE '^SECRET_KEY=change-me' env.rendered; then
+            echo "::warning::SECRET_KEY 缺失或仍是占位值，请检查 Secrets.BACKEND_ENV"
+          fi
+
+      - name: Ship compose + Caddyfile + env to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.yml,Caddyfile.rendered"
+          source: "docker-compose.yml,Caddyfile.rendered,env.rendered"
           target: "/opt/shadowingmaster"
           overwrite: true
 
@@ -89,15 +134,15 @@ jobs:
             set -e
             cd /opt/shadowingmaster
             mv -f Caddyfile.rendered Caddyfile
-            # 运行时 .env（来自仓库 Secrets.BACKEND_ENV）；不要在其中写 BACKEND_IMAGE
-            printf '%s\n' "${{ secrets.BACKEND_ENV }}" > .env
-            # 固定到本次构建的不可变 sha 标签，而非 latest：latest 会被下次构建覆盖，
-            # 导致「重启一次容器就悄悄换了版本」。用 sha 标签则 compose 记录的就是
-            # 确切版本，回滚只需把这一行改回上一个 sha 再 up -d。
-            sed -i '/^BACKEND_IMAGE=/d' .env
-            echo "BACKEND_IMAGE=ghcr.io/${{ steps.img.outputs.repo }}/backend:${{ steps.img.outputs.tag }}" >> .env
+            # .env 已在 runner 上渲染好（见上一环节），这里只落位，不做任何 shell 解析。
+            mv -f env.rendered .env
+            chmod 600 .env
+            # GHCR 包跟随仓库可见性，仓库为私有时公网 pull 会 401。用本次 workflow 的
+            # 令牌登录再拉；用完立即 logout，不在服务器上留长期凭据。
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
             docker compose pull backend
             docker compose up -d --remove-orphans
+            docker logout ghcr.io
             # 先探容器内部，把「应用起不来」与「Caddy/DNS/证书没就绪」区分开 ——
             # 只探公网域名的话，两类故障会报成同一个错，定位要多花一轮。
             echo "waiting for backend container ..."
