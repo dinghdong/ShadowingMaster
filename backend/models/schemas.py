@@ -41,6 +41,10 @@ class SentenceOut(BaseModel):
     end_time: float
     english_text: str
     chinese_text: Optional[str]
+    # 逐词时间戳 [[t0, t1], ...]（绝对秒），与 english_text.split() 一一对应。
+    # 来源于字幕轨自带的词级时间戳；人工字幕轨没有该信息时为 None，
+    # 前端回退到句内线性插值（精度较差，但不影响可用）。
+    word_timings: Optional[list[list[float]]] = None
 
 
 class ParseRequest(BaseModel):

@@ -34,6 +34,25 @@ def video_to_dict(r) -> dict:
     return d
 
 
+def sentence_to_dict(r) -> dict:
+    """把 sentences 行转 dict，并把 word_timings 的 JSON 字符串还原为二维数组。
+
+    容错：列缺失/为 NULL/内容损坏一律给 None —— 前端据此回退到线性插值，
+    不会因为一条脏数据整页崩掉。
+    """
+    d = dict(r)
+    raw = d.get("word_timings")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            d["word_timings"] = parsed if isinstance(parsed, list) else None
+        except (json.JSONDecodeError, ValueError):
+            d["word_timings"] = None
+    else:
+        d["word_timings"] = None
+    return d
+
+
 @router.get("", response_model=list[VideoOut])
 def list_videos():
     conn = get_db()
@@ -56,7 +75,7 @@ def get_video(video_id: int):
     conn.close()
     return {
         "video": video_to_dict(video),
-        "sentences": [dict(s) for s in sentences],
+        "sentences": [sentence_to_dict(s) for s in sentences],
     }
 
 

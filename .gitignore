@@ -13,6 +13,12 @@ cookies.txt
 # Clash config contains CordCloud subscription credentials (trojan passwords/UUIDs) — do NOT commit
 backend/deploy/clash/config.yaml
 
+# 本地 SQLite 开发库，勿提交：里面是本机测试账号与导入的视频数据，与生产无关
+# （生产库在 VPS 挂载卷 /data/app.db，由 DATA_DIR 指向，见 core/db.py）。
+app.db
+app.db-journal
+app.db-wal
+app.db-shm
 # 本地 SQLite 删除备份，仅临时留存，勿提交
 app.db.bak-*
 .vercel

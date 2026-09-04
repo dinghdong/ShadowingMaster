@@ -263,23 +263,31 @@ def _build_format_selector() -> str:
 
 
 def _pick_english_langs(info: dict) -> list:
-    """从 extract_info 结果里挑出真实可下载的英文语言代码，兼顾自动/手动字幕。
+    """从 extract_info 结果里挑出真实可下载的英文语言代码，**自动字幕轨优先**（原因见下方注释）。
     YouTube 自动字幕的 key 并不固定：常见有 en / en-US / en-GB，也有 en-en-US（"English from
     English (United States)"）等。硬编码请求某一组会漏掉其余，触发「no subtitles」。这里直接
     读视频实际提供的 key，避免对语言代码做假设。
-    优先顺序：en > en-orig > en-US > en-GB > en-en* > 其余 en-*。
+    轨类型优先：automatic_captions > subtitles；组内优先顺序：en > en-orig > en-US > en-GB > en-en* > 其余 en-*。
 
     只返回 1 个 key：TED 之类的视频会同时提供 en-ar / en-es / en-ja 等十几条「英文轨的
     他语言翻译」，它们都以 en 开头，全下会白拉十几个文件并显著提高 429 风险；而且它们
     最终都会被 _resolve_english_vtt 归一化成同一个 {id}.en.vtt 互相覆盖，毫无意义。"""
     auto = info.get("automatic_captions") or {}
     manual = info.get("subtitles") or {}
-    # 手动字幕（人工校对，带标点）优先于自动字幕
+    # 自动字幕优先于手动字幕 —— 曾经反过来（理由是「手动=人工校对，带标点」），实测站不住：
+    #   * 词级时间戳（<00:00:00.320><c> on.</c>）只存在于自动轨，它是 ASR 逐帧对齐的副产品。
+    #     手动轨是上传的字幕文件，时间精度只到 cue 级，词级信息无处存放，只能靠 cue 内等分
+    #     插值伪造 —— 而伪造出的时间戳句首准、句尾飘，正是卡拉OK对不上语音的根因。
+    #   * 「手动=人工校对」这个前提不成立：subtitles 的真实含义只是「有人上传过字幕文件」，
+    #     大量创作者直接上传 Whisper 跑出来的未加标点转录稿（实测 5723 字符仅 3 个句末标点）。
+    #     反过来 YouTube 新版 ASR 会自动加标点，实测 4 条自动轨里 3 条标点密度正常。
+    # 代价：自动轨偶有完全无标点的（实测 1/4），此时句子退化为按 10 词硬切。这是已知取舍——
+    # 词级时间戳拿不到就再也补不回来，标点缺失至少还留着从手动轨补齐的余地。
     keys_manual = sorted(k for k in manual if k.startswith("en"))
     keys_auto = sorted(k for k in auto if k.startswith("en"))
 
     pref = ["en", "en-orig", "en-US", "en-GB"]
-    for group in (keys_manual, keys_auto):
+    for group in (keys_auto, keys_manual):
         if not group:
             continue
         for k in pref:
@@ -368,7 +376,14 @@ def _upload_assets(youtube_id: str):
             break
 
 
-def fetch(url: str) -> int:
+def fetch(url: str, require_auto_track: bool = True) -> int:
+    """下载视频 + 字幕并入库，返回 video_id。
+
+    require_auto_track：视频没有 YouTube 自动生成字幕轨时直接拒绝导入（默认开启）。
+    自动轨是词级时间戳的唯一来源，缺了它卡拉OK逐词高亮只能靠 cue 内等分插值伪造，
+    句首准、句尾飘，对不上语音。用户从「添加视频」进来的走默认值，宁可不收也不收坏数据；
+    CLI 可传 False 强行导入（接受降级的逐词高亮），见 __main__ 的 --allow-manual-track。
+    """
     # 1. 取视频元信息（id / 标题 / 时长）。这里也带 writeautomaticsub/listsubtitles，
     #    否则 extract_info 不会完整填充 automatic_captions（只有真实可下载的英文 key 才会
     #    出现，例如 en-en-US），导致下方 _pick_english_langs 漏读语言代码。
@@ -400,7 +415,18 @@ def fetch(url: str) -> int:
         raise ValueError(
             f"视频 {youtube_id} 没有可用的英文字幕（自动/手动字幕均未提供 en* 语言）。"
         )
-    print(f"英文字幕语言：{', '.join(en_langs)}")
+    # 选中的 key 是否来自自动轨。yt-dlp 的 process_subtitles 会先把手动轨灌进 available_subs，
+    # 自动轨只填补其中缺失的语言（见 YoutubeDL.py），所以同名 key 下手动轨必定压过自动轨——
+    # 只改 _pick_english_langs 的优先级会被这里架空，必须同时关掉 writesubtitles 才生效。
+    en_is_auto = en_langs[0] in (info.get("automatic_captions") or {})
+    print(f"英文字幕语言：{en_langs[0]}（{'自动轨·带词级时间戳' if en_is_auto else '手动轨·无词级时间戳'}）")
+    if require_auto_track and not en_is_auto:
+        # 在下载几十 MB 视频之前拒绝，理由见 fetch() 的 docstring。
+        raise ValueError(
+            "该视频没有 YouTube 自动生成的英文字幕，只有上传者提供的字幕轨。"
+            "上传字幕不含逐词时间信息，无法支持卡拉OK逐词高亮，已停止导入。"
+            "建议换一个有自动字幕的视频（绝大多数英文视频都有）。"
+        )
     # 中文译文轨：YouTube 官方翻译字幕（zh-Hans 等）。取不到则留空，由机器翻译补漏。
     zh_langs = _pick_chinese_langs(info)
     print(f"中文字幕语言：{', '.join(zh_langs) if zh_langs else '（无，将走机器翻译）'}")
@@ -422,7 +448,9 @@ def fetch(url: str) -> int:
         # 因为字幕下载失败（如 429）会让整个 YoutubeDL.download 抛 DownloadError，
         # 混在一起会把「拿不到中文」升级成「整个视频解析失败」。
         "subtitleslangs": en_langs,
-        "writesubtitles": True,  # 人工字幕（subtitles）也要，仅 writeautomaticsub 覆盖不到
+        # 选中自动轨时必须关掉 writesubtitles，否则同名手动轨会把它顶掉（见上方 en_is_auto）。
+        # 只有在压根没有自动轨、只能退而求其次用手动轨时才打开——此时它是唯一来源。
+        "writesubtitles": not en_is_auto,
         "subtitlesformat": "vtt",
         "writethumbnail": True,
         "postprocessors": postprocessors,
@@ -546,7 +574,10 @@ def fetch(url: str) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("用法：python fetch_video.py <youtube_url>")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    if not args:
+        print("用法：python fetch_video.py <youtube_url> [--allow-manual-track]")
+        print("  --allow-manual-track  没有自动字幕轨时仍导入（卡拉OK逐词高亮会降级为估算）")
         sys.exit(1)
-    fetch(sys.argv[1])
+    fetch(args[0], require_auto_track="--allow-manual-track" not in flags)

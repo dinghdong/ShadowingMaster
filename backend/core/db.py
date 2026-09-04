@@ -51,6 +51,7 @@ def init_db():
             end_time REAL NOT NULL,
             english_text TEXT NOT NULL,
             chinese_text TEXT,
+            word_timings TEXT,               -- 逐词 [t0, t1] JSON 数组，卡拉OK高亮用
             FOREIGN KEY (video_id) REFERENCES videos(id)
         );
 
@@ -139,6 +140,15 @@ def init_db():
         ).fetchone()[0]
         if not exists:
             cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {ctype}")
+
+    # 迁移：sentences 表补 word_timings 列 —— 每句逐词 [t0, t1] 的 JSON 数组（绝对秒），
+    # 与 english_text.split() 一一对应，供前端卡拉OK按真实语音节奏高亮。
+    # 旧库该列为 NULL，前端自动回退到句内线性插值（老行为）。
+    exists = cursor.execute(
+        "SELECT COUNT(*) FROM pragma_table_info('sentences') WHERE name=?", ("word_timings",)
+    ).fetchone()[0]
+    if not exists:
+        cursor.execute("ALTER TABLE sentences ADD COLUMN word_timings TEXT")
 
     # 迁移：word_books 表补全「中文释义 / 例句 / 例句中文」三列
     for col, ctype in (("example", "TEXT"), ("definition_zh", "TEXT"), ("example_zh", "TEXT")):

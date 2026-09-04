@@ -3,7 +3,31 @@ import { fetchVideos, fetchVideo, getProgress, saveProgress, submitVideo, getPar
 import { Video, Sentence, Page } from "../shared";
 import { JumpTarget } from "./useRouting";
 import { ShadowRecording } from "./useRecording";
-import { SM_SCROLL_DEBUG, smScrollLog } from "../scrollDebug";
+import { SM_SCROLL_DEBUG, smScrollLog, smDiagLog } from "../scrollDebug";
+
+// ── 解析轮询容错 ──
+// 网络层抖动（代理 / Tor 出口 / 弱网 / 节点切换）会让 fetch 抛 TypeError，
+// 但**后端解析任务仍在后台继续跑**。老实现遇到一次抖动就 stopParsePolling()
+// 并把浏览器原始报错（"Failed to fetch"）直接甩给用户，用户以为解析失败，
+// 实际上视频几分钟后已经入库 —— 这正是 2026-09-03 线上那次误报的成因。
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_NET_FAILS = 15; // 连续网络失败容忍次数（2s/次 ≈ 30s 容错窗口）
+const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 轮询总上限，避免任务卡死时前端无限转圈
+
+const isNetworkError = (e: unknown) =>
+  e instanceof TypeError ||
+  /failed to fetch|networkerror|load failed|network request failed|ERR_NETWORK/i.test(
+    String((e as any)?.message || e)
+  );
+
+/** 把浏览器/后端的裸报错翻译成用户能看懂的中文提示 */
+function friendlyParseError(e: unknown, fallback: string) {
+  if (isNetworkError(e)) {
+    // 后端任务并未中止，所以提示必须说明"可能仍在解析"，而不是让用户以为失败了
+    return "网络连接不稳定，请求未能送达服务器。视频可能仍在后台解析中，可稍后刷新列表查看，或重新提交（重复提交不会重复解析）。";
+  }
+  return String((e as any)?.message || "").trim() || fallback;
+}
 
 export interface VideosDeps {
   page: Page;
@@ -47,7 +71,9 @@ export function useVideos(deps: VideosDeps) {
   const [parseInput, setParseInput] = useState("");
   const [parseJob, setParseJob] = useState<{ job_id: number; status: string; video_id?: number; error?: string } | null>(null);
   const [parseError, setParseError] = useState("");
-  const parseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 轮询改用自调度的 setTimeout（而非 setInterval）：弱网下单次请求可能耗时数秒，
+  // setInterval 会并发叠加请求，自调度能保证上一次返回后才发起下一次。
+  const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetchVideos().then((v: Video[]) => { setVideos(v); setLoading(false); }).catch(() => setLoading(false));
@@ -93,6 +119,7 @@ export function useVideos(deps: VideosDeps) {
           jumpTargetRef.current = null;
           const j = data.sentences.findIndex((s: any) => s.id === jump.sentenceId);
           idx = j >= 0 ? j : 0;
+          smDiagLog(`PAGELOAD jumpTarget -> j=${j} idx=${idx}`);
         } else if (localStorage.getItem("token")) {
           // 位置记忆：登录用户恢复上次句位（游客从头开始）
           try {
@@ -101,13 +128,19 @@ export function useVideos(deps: VideosDeps) {
             if (rec) {
               idx = Math.max(0, Math.min(data.sentences.length - 1, rec.last_sentence_index));
               resumeIdx = idx > 0 ? idx : null;
+              smDiagLog(`PAGELOAD progress rec video=${currentVideoId} last_sentence_index=${rec.last_sentence_index} -> idx=${idx}`);
+            } else {
+              smDiagLog(`PAGELOAD progress: no rec for video=${currentVideoId} -> idx=0`);
             }
           } catch { /* 静默 */ }
+        } else {
+          smDiagLog(`PAGELOAD guest (no token) -> idx=0`);
         }
         if (!cancelled) {
           setResumeIndex(resumeIdx);
           setResumeDismissed(false);
           setCurrentIndex(idx);
+          smDiagLog(`PAGELOAD setCurrentIndex=${idx} resumeIdx=${resumeIdx} sentences=${data.sentences.length} start_time=${data.sentences[idx]?.start_time} end_time=${data.sentences[idx]?.end_time}`);
           // 进页定位：列表自动滚到上次学到/生词本跳转的目标句（延到 DOM 提交后测量布局）
           smScrollLog(`PAGELOAD idx=${idx}`);
           requestAnimationFrame(() => scrollToSentence(idx));
@@ -146,6 +179,7 @@ export function useVideos(deps: VideosDeps) {
 
   const goSentence = (idx: number) => {
     const clamped = Math.max(0, Math.min(sentences.length - 1, idx));
+    smDiagLog(`NAV goSentence(${idx}) -> clamped=${clamped}`);
     setCurrentIndex(clamped);
     deps.setRecognizedText("");
     deps.setWordMatches([]);
@@ -172,6 +206,7 @@ export function useVideos(deps: VideosDeps) {
   const scrollToSentence = (idx: number, behavior: ScrollBehavior = "smooth") => {
     const leftCol = document.querySelector(".practice__left");
     const mobile = !leftCol || getComputedStyle(leftCol).position !== "sticky";
+    smDiagLog(`SCROLL-DESKTOP idx=${idx} mobile=${mobile} -> ${mobile ? "SKIP(mobile, react-window 接管)" : "run"}`);
     // 移动端滚动由 MobileSentenceList(react-window) 接管：它内部监听 currentIndex 并调用
     // listRef.scrollToItem(idx, "smart")，直接给滚动容器赋 scrollTop（微信 WebView 中唯一可靠的滚动方式）。
     // 此处桌面端专用，不再手动操作移动端 DOM，避免与虚拟列表争抢滚动。
@@ -251,7 +286,7 @@ export function useVideos(deps: VideosDeps) {
   };
 
   const stopParsePolling = () => {
-    if (parseTimerRef.current) { clearInterval(parseTimerRef.current); parseTimerRef.current = null; }
+    if (parseTimerRef.current) { clearTimeout(parseTimerRef.current); parseTimerRef.current = null; }
   };
 
   useEffect(() => () => stopParsePolling(), []); // 卸载时清理轮询
@@ -260,44 +295,83 @@ export function useVideos(deps: VideosDeps) {
     const url = (rawUrl || "").trim();
     setParseError("");
     if (!url) { setParseError("请输入 YouTube 链接"); return; }
+    // 提交请求本身也会抖动。后端对同链接已有 pending/processing/done 任务会直接复用，
+    // 因此重试不会产生重复下载，可以放心重试一次。
+    let res: any;
     try {
-      const res: any = await submitVideo(url);
-      // 已存在 → 直接刷新并打开
-      if (res.already_exists || (res.video_id && res.status === "done")) {
-        await refreshVideos();
-        if (res.video_id) openVideo(res.video_id);
-        setParseInput("");
+      res = await submitVideo(url);
+    } catch (e) {
+      if (!isNetworkError(e)) {
+        setParseError(friendlyParseError(e, "提交失败，请检查链接或登录状态"));
         return;
       }
-      // 新任务 → 轮询进度，done 自动刷新列表并打开视频
-      const jobId: number = res.job_id;
-      setParseJob({ job_id: jobId, status: res.status });
-      stopParsePolling();
-      parseTimerRef.current = setInterval(async () => {
-        try {
-          const j: any = await getParseJob(jobId);
-          if (j.status === "done") {
-            stopParsePolling();
-            setParseJob(null);
-            setParseInput("");
-            await refreshVideos();
-            if (j.video_id) openVideo(j.video_id);
-          } else if (j.status === "failed") {
-            stopParsePolling();
-            setParseError(j.error || "解析失败，请稍后重试");
-            setParseJob(null);
-          } else {
-            setParseJob({ job_id: j.id, status: j.status });
-          }
-        } catch (e: any) {
-          stopParsePolling();
-          setParseError(e.message || "查询解析进度失败");
-          setParseJob(null);
-        }
-      }, 2000);
-    } catch (e: any) {
-      setParseError(e.message || "提交失败，请检查链接或登录状态");
+      try {
+        res = await submitVideo(url);
+      } catch (e2) {
+        setParseError(friendlyParseError(e2, "提交失败，请检查网络连接后重试"));
+        return;
+      }
     }
+    setParseError("");
+
+    // 已存在 → 直接刷新并打开
+    if (res.already_exists || (res.video_id && res.status === "done")) {
+      await refreshVideos();
+      if (res.video_id) openVideo(res.video_id);
+      setParseInput("");
+      return;
+    }
+
+    // 新任务 → 轮询进度，done 自动刷新列表并打开视频
+    const jobId: number = res.job_id;
+    setParseJob({ job_id: jobId, status: res.status });
+    stopParsePolling();
+
+    let netFails = 0;
+    const startedAt = Date.now();
+
+    const poll = async () => {
+      // 超时保护：任务卡死时不要无限转圈
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+        stopParsePolling();
+        setParseJob(null);
+        setParseError("解析超时（超过 10 分钟仍未完成）。请稍后刷新列表查看，或重新提交。");
+        return;
+      }
+      try {
+        const j: any = await getParseJob(jobId);
+        netFails = 0; // 成功一次即清零
+        if (j.status === "done") {
+          stopParsePolling();
+          setParseJob(null);
+          setParseInput("");
+          await refreshVideos();
+          if (j.video_id) openVideo(j.video_id);
+          return;
+        }
+        if (j.status === "failed") {
+          stopParsePolling();
+          setParseError(j.error || "解析失败，请稍后重试");
+          setParseJob(null);
+          return;
+        }
+        setParseJob({ job_id: j.id, status: j.status });
+      } catch (e: any) {
+        // 网络抖动 ≠ 解析失败：后端任务仍在跑，继续轮询；
+        // 只有连续失败累计到阈值（约 30s）才判定为真的连不上。
+        if (isNetworkError(e) && netFails + 1 < POLL_MAX_NET_FAILS) {
+          netFails += 1;
+        } else {
+          stopParsePolling();
+          setParseJob(null);
+          setParseError(friendlyParseError(e, "查询解析进度失败"));
+          return;
+        }
+      }
+      // 自调度：等上一次请求返回后再排下一次，避免弱网下请求叠加
+      parseTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+    };
+    parseTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
   };
 
   return {

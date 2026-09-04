@@ -101,9 +101,9 @@ function LandingNav(p: Props) {
           <Icon name={p.theme === "dark" ? "sun" : "moon"} size={22} />
         </button>
         {p.user ? (
-          <button className="btn btn--sm btn--primary" onClick={() => p.setPage("list")}>进入应用</button>
+          <button className="btn btn--sm landing__nav-enter" onClick={() => p.setPage("list")}>进入应用</button>
         ) : (
-          <button className="btn btn--sm btn--primary" onClick={() => p.setPage("login")}>登录</button>
+          <button className="btn btn--sm landing__nav-login" onClick={() => p.setPage("login")}>登录</button>
         )}
       </div>
     </header>

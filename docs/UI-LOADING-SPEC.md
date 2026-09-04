@@ -2,7 +2,7 @@
 
 > 事实源：`tokens.css`(色彩/间距/圆角/动效) + `components.css`(组件类) + `Icon.tsx`(spinner 图标)。
 > 原则：所有视觉值只引用 `var(--xxx)`，禁止硬编码；尊重 `prefers-reduced-motion`（已全局支持）。
-> 关联：`docs/UI-DESIGN-SPEC.md`（通用视觉语言）。
+> 关联：`../frontend/docs/UI-DESIGN-SPEC.md`（通用视觉语言）。
 
 ---
 

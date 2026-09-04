@@ -19,9 +19,12 @@ export interface Sentence {
   end_time: number;
   english_text: string;
   chinese_text: string | null;
+  /** 逐词时间戳 [[t0, t1], ...]（绝对秒），与 english_text.split(/\s+/) 一一对应。
+   *  来自字幕轨自带的词级时间戳；人工字幕轨没有该信息时为 null。 */
+  word_timings?: number[][] | null;
 }
 
-export type Page = "landing" | "login" | "list" | "player" | "wordbook" | "profile" | "add";
+export type Page = "landing" | "login" | "list" | "player" | "wordbook" | "profile" | "add" | "styleguide";
 
 /** 后端相对路径（/media/...）转完整 URL；外链原样返回 */
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
@@ -99,6 +102,35 @@ export function tokenize(text: string) {
     isHard: isHardWord(part),
     space: i % 2 === 1,
   }));
+}
+
+/**
+ * 卡拉OK当前高亮词下标。
+ *
+ * 有真实词级时间戳时按时间戳二分定位：取「最后一个已经开始的词」。
+ * 词与词之间的空隙（停顿、转场音乐）保持上一个词高亮 —— 语音停住，高亮也停住。
+ *
+ * 没有时间戳（人工字幕轨、或旧数据未回填）才回退到句内线性均分。
+ * 这条回退路径精度有限：它假设每个词等时长，实测中位漂移 0.2~0.3s，
+ * 遇到「说完后字幕挂着等转场音乐」的 cue 能偏出好几秒。
+ */
+export function activeWordIndex(s: Sentence, playhead: number, wordCount: number): number {
+  if (wordCount <= 0) return -1;
+  const wt = s.word_timings;
+
+  if (Array.isArray(wt) && wt.length === wordCount) {
+    if (playhead < wt[0][0]) return 0;
+    // 二分：最后一个满足 wt[i][0] <= playhead 的 i
+    let lo = 0, hi = wordCount - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (wt[mid][0] <= playhead) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+  }
+
+  const prog = (playhead - s.start_time) / Math.max(0.001, s.end_time - s.start_time);
+  return Math.min(wordCount - 1, Math.max(0, Math.floor(prog * wordCount)));
 }
 
 export function compareWords(original: string, recognized: string) {
