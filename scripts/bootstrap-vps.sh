@@ -4,78 +4,52 @@ set -euo pipefail
 # ShadowingMaster —— VPS 初次引导（在目标 VPS 上以 root 运行一次）
 #
 # 用法：
-#   ./scripts/bootstrap-vps.sh --domain api.shadowingmaster.com [--env-file /path/to/prod.env]
+#   ./scripts/bootstrap-vps.sh --domain api.shadowingmaster.genisource.studio
 #
-# 完成四件事：
-#   1. 安装 Docker + compose 插件（若缺失）
-#   2. 创建 /opt/shadowingmaster，写入 .env（来自 --env-file 或占位模板）
+# 生产架构：systemd 直跑，不是容器。本脚本只负责把「运行环境」就位：
+#   1. 确保运行用户 shadowing 与 /opt/shadowing 存在
+#   2. 安装 systemd 单元 shadowing.service（若仓库带 deploy/shadowing.service 则用它；
+#      否则校验 /etc/systemd/system/shadowing.service 已存在，缺失则告警）
 #   3. 安装每日备份 cron（scripts/backup.sh → 阿里云 OSS）
-#   4. 放行 80/443（若启用 ufw）
+#   4. 放行 22/80/443
 #
-# 之后把仓库 push 到 GitHub main 分支，deploy.yml 会自动拉起服务。
+# 代码本身由 deploy.yml（rsync + systemctl restart）负责，本脚本不碰代码、不碰 .env。
+# Caddy 已在 /etc/caddy/Caddyfile 反代 localhost:8000，本脚本也不管它。
+# （Docker 此前装过但生产不用，保留无害；新机器无需再装。）
 
 DOMAIN=""
-ENV_FILE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) DOMAIN="$2"; shift 2;;
-    --env-file) ENV_FILE="$2"; shift 2;;
     *) echo "unknown arg: $1" >&2; exit 1;;
   esac
 done
-[ -z "$DOMAIN" ] && { echo "ERROR: 必须传 --domain（API 域名，如 api.shadowingmaster.com）" >&2; exit 1; }
+[ -z "$DOMAIN" ] && { echo "ERROR: 必须传 --domain（API 域名，如 api.shadowingmaster.genisource.studio）" >&2; exit 1; }
 
-INSTALL_DIR=/opt/shadowingmaster
+INSTALL_DIR=/opt/shadowing
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 1) 运行用户 + 目录
+if ! id shadowing >/dev/null 2>&1; then
+  echo ">> 创建运行用户 shadowing"
+  useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" shadowing
+fi
 mkdir -p "$INSTALL_DIR"
+chown shadowing:shadowing "$INSTALL_DIR"
 
-# 1) Docker
-is_alinux() { [ -f /etc/alinux-release ] || grep -qi 'alinux' /etc/os-release 2>/dev/null; }
-if ! command -v docker >/dev/null 2>&1; then
-  echo ">> 安装 Docker"
-  if is_alinux; then
-    # 阿里云 Linux 是 RHEL8 兼容系，官方 get.docker.com 脚本会报
-    # "Unsupported distribution 'alinux'"。直接用 dnf/yum 装发行版自带的 docker。
-    PM=$(command -v dnf >/dev/null 2>&1 && echo dnf || echo yum)
-    $PM install -y docker
-  else
-    curl -fsSL https://get.docker.com | sh
-  fi
-fi
-if ! docker compose version >/dev/null 2>&1; then
-  echo ">> 安装 compose 插件"
-  if is_alinux; then
-    PM=$(command -v dnf >/dev/null 2>&1 && echo dnf || echo yum)
-    $PM install -y docker-compose-plugin
-  else
-    apt-get update -y && apt-get install -y docker-compose-plugin
-  fi
-fi
-
-# 2) .env
-if [ -n "$ENV_FILE" ]; then
-  cp "$ENV_FILE" "$INSTALL_DIR/.env"
-  echo ">> 已写入 .env（来自 $ENV_FILE）"
+# 2) systemd 单元
+if [ -f "$SCRIPT_DIR/../deploy/shadowing.service" ]; then
+  echo ">> 安装 systemd 单元（来自仓库 deploy/shadowing.service）"
+  cp "$SCRIPT_DIR/../deploy/shadowing.service" /etc/systemd/system/shadowing.service
+  systemctl daemon-reload
+  systemctl enable shadowing
+elif [ -f /etc/systemd/system/shadowing.service ]; then
+  echo ">> systemd 单元已存在（/etc/systemd/system/shadowing.service），跳过"
 else
-  cat > "$INSTALL_DIR/.env" <<'EOF'
-# 占位 .env（bootstrap 生成）。CI 部署会用 Secrets.BACKEND_ENV 覆盖；
-# 手动维护时至少填：SECRET_KEY / CORS_ALLOW_ORIGINS / OSS_* / YTDLP_PROXY
-SECRET_KEY=change-me-to-a-long-random-string
-CORS_ALLOW_ORIGINS=https://your-frontend.vercel.app
-OSS_ENDPOINT=oss-eu-west-1.aliyuncs.com
-OSS_BUCKET=your-bucket
-OSS_ACCESS_KEY_ID=
-OSS_ACCESS_KEY_SECRET=
-OSS_REGION=eu-west-1
-OSS_URL_EXPIRE=3600
-YTDLP_PROXY=
-EOF
-  echo ">> 已写入占位 .env（请尽快补全）"
+  echo "::warning:: 仓库未带 deploy/shadowing.service 且 /etc/systemd/system/shadowing.service 不存在，请手动放置单元文件"
 fi
 
 # 3) 备份 cron（每天 04:17 伦敦时间）
-#    阿里云 Linux 默认不带 crontab，缺失时先装 cronie；整条写入用 `|| echo` 兜底，
-#    避免 `set -e` 下因 cron 不可用而中断后续（Caddyfile 渲染等）步骤。
 if ! command -v crontab >/dev/null 2>&1; then
   echo ">> 安装 cronie"
   if command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
@@ -87,6 +61,7 @@ if ! command -v crontab >/dev/null 2>&1; then
 fi
 cp "$SCRIPT_DIR/backup.sh" "$INSTALL_DIR/backup.sh"
 chmod +x "$INSTALL_DIR/backup.sh"
+chown shadowing:shadowing "$INSTALL_DIR/backup.sh"
 ( crontab -l 2>/dev/null | grep -v "$INSTALL_DIR/backup.sh"; \
   echo "17 4 * * * /bin/bash $INSTALL_DIR/backup.sh >> $INSTALL_DIR/backup.log 2>&1" ) | crontab - \
   || echo "::warning:: crontab 写入失败（非致命，可手动补备份任务）"
@@ -94,27 +69,13 @@ chmod +x "$INSTALL_DIR/backup.sh"
 # 4) 放行端口
 if command -v ufw >/dev/null 2>&1; then
   ufw allow 22/tcp 80/tcp 443/tcp || true
+elif command -v firewall-cmd >/dev/null 2>&1; then
+  firewall-cmd --permanent --add-service=http --add-service=https --add-service=ssh 2>/dev/null || true
+  firewall-cmd --reload 2>/dev/null || true
 fi
 
-# 5) Caddyfile —— 用 --domain 渲染一份初始配置。
-#    此前 --domain 只被校验、从不使用，导致引导完成后目录里没有 Caddyfile，
-#    而 compose 把它作为只读卷挂给 caddy，缺失时 caddy 起不来。
-#    CI 每次部署都会用 Secrets.DEPLOY_DOMAIN 重新渲染覆盖，这里只保证首次可用。
-sed "s/DOMAIN/$DOMAIN/g" "$SCRIPT_DIR/../Caddyfile" > "$INSTALL_DIR/Caddyfile"
-echo ">> 已写入 Caddyfile（域名 $DOMAIN）"
-
 echo
-echo ">> bootstrap 完成。"
+echo ">> bootstrap 完成（仅运行环境；代码由 deploy.yml 部署）。"
 echo "   目录 : $INSTALL_DIR"
 echo "   域名 : $DOMAIN"
-echo
-echo "   下一步（在 GitHub 仓库 Settings → Secrets and variables → Actions 配置）："
-echo "     VPS_HOST        本机公网 IP"
-echo "     VPS_USER        部署用 SSH 账号"
-echo "     VPS_SSH_KEY     对应私钥全文"
-echo "     DEPLOY_DOMAIN   $DOMAIN"
-echo "     BACKEND_ENV     生产 .env 全文（不要含 BACKEND_IMAGE，CI 会写）"
-echo
-echo "   配好后 push 到 main，deploy.yml 会构建镜像并自动拉起服务。"
-echo "   注意：此刻还不能手动 docker compose up —— compose 文件由 CI 投递，"
-echo "        且 BACKEND_IMAGE 需指向 GHCR 上已构建的镜像，首次部署必须走 CI。"
+echo "   下一步：GitHub 配 4 个 Secrets（VPS_HOST/VPS_USER/VPS_SSH_KEY/DEPLOY_DOMAIN），push main 即可。"

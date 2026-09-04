@@ -1,165 +1,139 @@
 name: Deploy backend
 
 # 触发：push 到 main。前端由 Vercel git 集成独立部署（见 README「部署」）。
+#
+# 生产后端是 systemd 直跑（非容器）：单元 shadowing.service 在 /opt/shadowing/backend
+# 用 venv 里的 uvicorn 起服务，Caddy 已在 /etc/caddy/Caddyfile 把
+# api.shadowingmaster.genisource.studio 反代到 localhost:8000。服务器没装 git，
+# 所以部署 = 把代码 rsync 过去 + systemctl restart，不是 git pull、也不是 Docker。
+#
+# 服务器上的 /opt/shadowing/backend/.env 已是真实配置，部署**保留它**，不覆盖
+# （所以不再需要 BACKEND_ENV 这个 Secret）。Caddyfile 也已就位，部署不碰它。
 on:
   push:
     branches: [main]
-  # 手动触发：不改代码也能重新部署或回滚。填入既有的 sha-<commit> 标签即可把线上
-  # 退回该版本 —— 否则回滚必须登录服务器改 .env，而部署链路的本意就是不用登服务器。
+  # 手动触发：填一个 ref（commit sha / 分支 / tag）可部署或回滚到该版本；留空=当前 HEAD。
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "要部署的镜像标签（留空=构建当前 commit；回滚填 sha-<40位commit>）"
+      ref:
+        description: "要部署的 git ref（留空=当前 HEAD；回滚填旧 commit sha）"
         required: false
         default: ""
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 推送到 GHCR 需要写包权限
     permissions:
-      packages: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # push 时 github.ref 即 main；手动触发时可用 inputs.ref 指定回滚目标。
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
-      # 五个 Secrets 缺任意一个，后面 scp/ssh 会连到空主机、或者写一份只有
-      # BACKEND_IMAGE 的 .env 让应用带着默认密钥上线 —— 报错信息都指不到真正的
-      # 原因（「Secrets 没配」）。这里一次性点名，省一轮排查。
+      # 四个 Secrets 缺任意一个，后面 rsync/ssh 会连到空主机或写不进文件。
+      # 一次性点名，省一轮「部署为什么没生效」的排查。
       - name: Guard required secrets
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
-          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
         run: |
           miss=0
-          for v in VPS_HOST VPS_USER VPS_SSH_KEY DEPLOY_DOMAIN BACKEND_ENV; do
+          for v in VPS_HOST VPS_USER VPS_SSH_KEY DEPLOY_DOMAIN; do
             [ -n "${!v}" ] || { echo "ERROR: Secrets.$v 未配置"; miss=1; }
           done
           [ "$miss" = 0 ] || { echo "请在 Settings → Secrets and variables → Actions 补齐后重跑"; exit 1; }
-          echo "5 个 Secrets 均已配置"
+          echo "4 个 Secrets 均已配置"
 
-      # GHCR 拒绝含大写字母的镜像名（invalid reference format: repository name must
-      # be lowercase）。本仓库是 dinghdong/ShadowingMaster，直接用 github.repository
-      # 会在 push 阶段失败，故先转成小写。
-      - name: Resolve image name
-        id: img
-        run: |
-          echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-          # 手动触发且指定了标签 = 回滚到既有镜像，跳过构建直接部署那个标签。
-          TAG="${{ github.event.inputs.image_tag }}"
-          if [ -n "$TAG" ]; then
-            echo "tag=$TAG"     >> "$GITHUB_OUTPUT"
-            echo "build=false"  >> "$GITHUB_OUTPUT"
-            echo ">> 回滚模式：部署既有镜像 $TAG，不构建"
-          else
-            echo "tag=sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-            echo "build=true"   >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up Buildx
-        if: steps.img.outputs.build == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 同时打 latest 与 sha-<commit>：latest 供日常拉取，sha 标签是不可变引用，
-      # 出问题时可直接把 .env 里的 BACKEND_IMAGE 指到上一个已知良好的 sha 回滚，
-      # 不必重新构建（此前只有 latest，回滚需手动找 digest）。
-      # 构建上下文必须是仓库根：requirements.txt 里的 -e ../packages/proxy_auto
-      # 需要 packages/ 在上下文内，用 ./backend 作上下文 pip 会直接失败。
-      - name: Build & push image
-        if: steps.img.outputs.build == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./backend/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ steps.img.outputs.repo }}/backend:latest
-            ghcr.io/${{ steps.img.outputs.repo }}/backend:${{ steps.img.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Render Caddyfile (inject domain)
+      # 把部署私钥落到文件（不进仓库、不打印），用 accept-new 把主机指纹记入 known_hosts。
+      - name: Prepare SSH key
         env:
-          # 走 env 而不是把 secret 直接内插进 sed 表达式：值里出现 & 或 / 会
-          # 破坏替换，出现 $ 会被 shell 二次解释。
-          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
-        run: sed "s/DOMAIN/$DEPLOY_DOMAIN/g" Caddyfile > Caddyfile.rendered
-
-      # 在 runner 上把运行时 .env 拼好再 scp 过去，而不是在远程 shell 里
-      # printf "$SECRET" —— 后者等于把 secret 交给远程 shell 二次解析：值里的
-      # $ ` " \ 会被展开、截断甚至当命令执行。随机密钥很容易撞上这些字符，且是
-      # 静默改值，要到「线上签发/校验失败」才暴露。本地渲染只有一层 shell，改值
-      # 只会改文件。文件名不带前导点：scp-action 对隐藏文件的匹配不稳定。
-      - name: Render runtime .env
-        env:
-          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          printf '%s\n' "$BACKEND_ENV" > env.rendered
-          # 固定到本次构建的不可变 sha 标签，而非 latest：latest 会被下次构建覆盖，
-          # 导致「重启一次容器就悄悄换了版本」。用 sha 标签则 compose 记录的就是
-          # 确切版本，回滚只需把这一行改回上一个 sha 再 up -d。
-          sed -i '/^BACKEND_IMAGE=/d' env.rendered
-          echo "BACKEND_IMAGE=ghcr.io/${{ steps.img.outputs.repo }}/backend:${{ steps.img.outputs.tag }}" >> env.rendered
-          # 占位/缺失密钥不会让部署失败，只会让所有人拿到可伪造的 token —— 点一下名。
-          if ! grep -qE '^SECRET_KEY=.+' env.rendered || grep -qE '^SECRET_KEY=change-me' env.rendered; then
-            echo "::warning::SECRET_KEY 缺失或仍是占位值，请检查 Secrets.BACKEND_ENV"
-          fi
+          command -v rsync || sudo apt-get update -y && sudo apt-get install -y rsync
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Ship compose + Caddyfile + env to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.yml,Caddyfile.rendered,env.rendered"
-          target: "/opt/shadowingmaster"
-          overwrite: true
-
-      - name: Write env + roll out
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
+      # 部署前先对线上 backend/ 与 packages/ 做时间戳备份（保留最近 3 份），并记录
+      # 当前 requirements.txt 哈希，供后面判断要不要重装依赖。回滚时直接把备份 cp 回去即可。
+      - name: Pre-deploy backup on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" '
             set -e
-            cd /opt/shadowingmaster
-            mv -f Caddyfile.rendered Caddyfile
-            # .env 已在 runner 上渲染好（见上一环节），这里只落位，不做任何 shell 解析。
-            mv -f env.rendered .env
-            chmod 600 .env
-            # GHCR 包跟随仓库可见性，仓库为私有时公网 pull 会 401。用本次 workflow 的
-            # 令牌登录再拉；用完立即 logout，不在服务器上留长期凭据。
-            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
-            docker compose pull backend
-            docker compose up -d --remove-orphans
-            docker logout ghcr.io
-            # 先探容器内部，把「应用起不来」与「Caddy/DNS/证书没就绪」区分开 ——
-            # 只探公网域名的话，两类故障会报成同一个错，定位要多花一轮。
-            echo "waiting for backend container ..."
-            for i in $(seq 1 12); do
-              if docker compose exec -T backend python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')" 2>/dev/null; then
-                echo "container OK"; break
-              fi
-              [ "$i" = "12" ] && { echo "BACKEND CONTAINER UNHEALTHY"; docker compose logs --tail=50 backend; exit 1; }
-              sleep 5
+            ts=$(date +%Y%m%d-%H%M%S)
+            cp -a /opt/shadowing/backend  /opt/shadowing/backup-$ts-backend
+            cp -a /opt/shadowing/packages /opt/shadowing/backup-$ts-packages
+            sha256sum /opt/shadowing/backend/requirements.txt 2>/dev/null | awk "{print \$1}" > /opt/shadowing/.deploy_req_hash_prev
+            # 只留最近 3 份 backend 备份
+            ls -dt /opt/shadowing/backup-*-backend 2>/dev/null | tail -n +4 | xargs -r rm -rf
+            echo "backup snapshot: $ts"
+          '
+
+      # rsync 代码过去。**不加 --delete**：保留服务器上的 .env / media / app.db 等
+      # 仓库外文件；只新增/更新仓库里的文件。排除项见各自 --exclude。
+      - name: Sync code to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          rsync -az -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            --exclude='.env' --exclude='media' --exclude='__pycache__' \
+            --exclude='*.pyc' --exclude='.cache' --exclude='*.db' --exclude='.git' \
+            --exclude='venv' --exclude='app.db*' \
+            backend/ "$VPS_USER@$VPS_HOST:/opt/shadowing/backend/"
+          rsync -az -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            --exclude='__pycache__' --exclude='*.pyc' --exclude='*.egg-info' --exclude='.git' \
+            packages/ "$VPS_USER@$VPS_HOST:/opt/shadowing/packages/"
+
+      # 落权、按需重装依赖、重启、本地健康检查（公网探活放下一步，在 runner 上做，
+      # 以免 $DEPLOY_DOMAIN 这类 runner 侧变量泄漏不进远程 shell）。
+      - name: Restart service + local health check
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" '
+            set -e
+            cd /opt/shadowing
+            # 依赖变化才重装，避免每次部署都联网解析（服务器出口走代理，省一次是一次）
+            NEW=$(sha256sum backend/requirements.txt 2>/dev/null | awk "{print \$1}")
+            PREV=$(cat .deploy_req_hash_prev 2>/dev/null || echo none)
+            if [ "$NEW" != "$PREV" ]; then
+              echo ">> requirements.txt 有变化，重装依赖"
+              venv/bin/pip install -r backend/requirements.txt
+            else
+              echo ">> requirements.txt 未变，跳过 pip install"
+            fi
+            chown -R shadowing:shadowing backend packages
+            systemctl restart shadowing
+            echo ">> 等待服务起来 ..."
+            ok=0
+            for i in $(seq 1 15); do
+              if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then ok=1; break; fi
+              sleep 3
             done
-            echo "waiting for public /api/health ..."
-            for i in $(seq 1 12); do
-              if curl -fsS "https://${{ secrets.DEPLOY_DOMAIN }}/api/health"; then
-                echo "DEPLOY OK"; exit 0
-              fi
-              sleep 5
-            done
-            echo "PUBLIC HEALTH CHECK FAILED (容器正常，问题在 Caddy/DNS/证书)"
-            docker compose logs --tail=30 caddy
-            exit 1
+            [ "$ok" = 1 ] || { echo "BACKEND UNHEALTHY"; journalctl -u shadowing --no-pager --tail=40; exit 1; }
+            echo ">> 本地 /api/health OK"
+          '
+
+      # 公网全链路探活（Caddy/TLS/DNS），在 runner 上做。失败只 warning：
+      # 本地已确认应用健康，公网不通通常是证书/解析问题，不该让部署判红。
+      - name: Public health check (best-effort)
+        env:
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS "https://$DEPLOY_DOMAIN/api/health"; then
+              echo "DEPLOY OK (public https://$DEPLOY_DOMAIN/api/health)"; exit 0
+            fi
+            sleep 3
+          done
+          echo "::warning:: 本地健康但公网探活失败（Caddy/DNS/证书问题，非代码问题）"
