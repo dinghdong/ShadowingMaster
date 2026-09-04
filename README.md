@@ -47,7 +47,9 @@ Browser
    - `VPS_HOST`、`VPS_USER`、`VPS_SSH_KEY`（部署用 SSH 私钥）
    - `DEPLOY_DOMAIN` = `api.<domain>`
    - `BACKEND_ENV` = 生产 `.env` 全文（不要含 `BACKEND_IMAGE`，CI 会自动补）
-3. push 到 `main` → `deploy.yml` 自动：构建镜像推到 **GHCR**（包设为 Public）→ scp compose/Caddyfile → VPS `docker compose up` → 探活 `/api/health`。
+3. push 到 `main` → `deploy.yml` 自动：构建镜像推到 **GHCR**（包设为 Public）→ scp compose/Caddyfile → VPS `docker compose up` → 两段探活（先容器内 `/api/health`，再公网域名，便于区分「应用起不来」与「Caddy/DNS/证书未就绪」）。
+
+> 部署全程不上传源码，只投递 `docker-compose.yml` 与 `Caddyfile`；应用本体是 GHCR 上的镜像。首次部署必须走 CI —— `BACKEND_IMAGE` 需指向已构建的镜像，在服务器上手动 `docker compose up` 会因该变量缺失而报错退出。
 
 > 私有镜像：若 GHCR 包设为 Private，需在 VPS 上 `docker login ghcr.io`（用含 `read:packages` 的 PAT），见 compose 的 `BACKEND_IMAGE`。
 
@@ -56,11 +58,20 @@ Browser
 - 恢复：`docker compose run --rm backend python -c "..."` 从 OSS 下载覆盖 `/data/app.db` 后 `docker compose restart backend`。
 
 ### 4. 回滚
-- 镜像按 `:latest` 推送。`docker compose` 在 VPS 上 `docker compose pull backend && docker compose up -d` 可回退到上一可用镜像；CI 探活失败会报错退出，需手动重拉已知良好 digest。
+镜像每次同时打 `:latest` 与 `:sha-<commit>`，部署时 `.env` 里的 `BACKEND_IMAGE` 固定到当次 sha（而非 `latest`，否则重启一次容器就会悄悄换版本）。
+
+回滚**不需要登录服务器**：GitHub Actions → Deploy backend → Run workflow，在 `image_tag` 填入要回退到的 `sha-<40位commit>` 即可。留空则构建并部署当前 commit。该模式跳过构建，直接部署 GHCR 上已有的镜像。
+
+### 5. 媒体文件与词级时间戳
+`DATA_DIR=/data` 把 `app.db` 与 `media/` 一并落到挂载卷。**字幕 `.vtt` 只存在于该卷**——`_upload_assets` 只上传 mp4 与封面，不传字幕。因此：
+
+- 卷丢失 = 字幕丢失 = `backfill_word_timings.py` 无法为存量视频补词级时间戳，只能重新导入。
+- 卡拉OK逐词高亮依赖这些时间戳；`word_timings` 为 NULL 时前端回退到句内线性插值（精度差但可用）。
+- 导入时只接受 YouTube **自动生成字幕轨**（词级时间戳的唯一来源）。上传字幕轨会被拒绝并提示用户，CLI 可用 `--allow-manual-track` 绕过。
 
 ### 相关文件
 - `docker-compose.yml` / `Caddyfile` — VPS 上的服务编排与反代
-- `.github/workflows/ci.yml` — PR 时前端构建/lint + 后端镜像构建校验
-- `.github/workflows/deploy.yml` — push main 时后端部署
+- `.github/workflows/ci.yml` — PR：前端 lint/build + 后端镜像构建校验 + 后端模块导入冒烟
+- `.github/workflows/deploy.yml` — push main 自动部署；`workflow_dispatch` 手动部署/回滚
 - `scripts/bootstrap-vps.sh` / `scripts/backup.sh` — VPS 引导与备份
 - `backend/.dockerignore`、`backend/Dockerfile` — 镜像构建
