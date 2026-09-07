@@ -443,6 +443,31 @@ def strip_rolling_track(chunks):
 CJK_TERMINAL = "。？！…．?!;"
 
 
+def _split_chunk_at_punct(st, en, text):
+    """把「上一句句号 + 下一句开头」混在同一帧的增量按**内部**句末标点切成子片段。
+
+    滚动轨差分后常见形态：'音乐收入约为 75 亿美元。 这里是' —— 句号在帧中间，
+    若只在 chunk 末尾收 unit，unit 会一路吞到下一个恰好以标点收尾的帧，
+    聚成横跨十几个英文句的巨型 unit，DP 对齐彻底失效。
+    子片段时间按字符占比在该帧区间内线性切分（假设匀速说话，用于 DP 打分足够）。
+    """
+    parts, n = [], len(text)
+    if n == 0:
+        return parts
+    seg_st, last = st, 0
+    for k, ch in enumerate(text):
+        if ch in CJK_TERMINAL:
+            seg_en = st + (k + 1) / n * (en - st)
+            seg = text[last:k + 1].strip()
+            if seg:
+                parts.append((seg_st, seg_en, seg))
+            seg_st, last = seg_en, k + 1
+    rest = text[last:].strip()
+    if rest:
+        parts.append((seg_st, en, rest))
+    return parts
+
+
 def _zh_units(zh_chunks):
     """把细粒度中文字幕片段按句末标点聚成「中文句」→ [(start, end, 文本), ...]。
 
@@ -452,10 +477,12 @@ def _zh_units(zh_chunks):
     """
     units, buf = [], []
     for st, en, text in zh_chunks:
-        buf.append((st, en, text))
-        if text and text[-1] in CJK_TERMINAL:
-            units.append((buf[0][0], buf[-1][1], join_texts([t for _, _, t in buf]), list(buf)))
-            buf = []
+        # 差分后的帧可能把「句号+下一句开头」挤在一起，先按内部标点切开再聚合
+        for sst, sen, seg in _split_chunk_at_punct(st, en, text):
+            buf.append((sst, sen, seg))
+            if seg[-1] in CJK_TERMINAL:
+                units.append((buf[0][0], buf[-1][1], join_texts([t for _, _, t in buf]), list(buf)))
+                buf = []
     if buf:
         units.append((buf[0][0], buf[-1][1], join_texts([t for _, _, t in buf]), list(buf)))
     return units
