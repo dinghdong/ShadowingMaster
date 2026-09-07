@@ -53,6 +53,19 @@ def _backup_zh(video_id: int, token: str) -> dict:
     return {r[0]: (r[1] or "") for r in rows}
 
 
+_LEAD_PUNCT_RE = None
+
+
+def _clean_zh(text: str) -> str:
+    """清掉句首残留标点：滚动轨差分后常见 '。 他们的第二大收入来源是' 这类以
+    上一句句号开头的片段；机翻回填的旧值里也有一批。只去句首，不动内容。"""
+    global _LEAD_PUNCT_RE
+    if _LEAD_PUNCT_RE is None:
+        import re as _re
+        _LEAD_PUNCT_RE = _re.compile(r"^[\s。，、；：！？…．,.;:!?]+")
+    return _LEAD_PUNCT_RE.sub("", (text or "").strip())
+
+
 def _cols(conn, table: str) -> str:
     """返回表的列名，失败诊断用（各环境 schema 可能不同）。"""
     try:
@@ -123,7 +136,7 @@ def realign(video_id: int, overwrite: bool = False, fill_from: str = "") -> str:
             # 看起来覆盖率很高，实际修完用户看到的还是旧的错误内容。
         elif not overwrite and (r["chinese_text"] or "").strip():
             continue  # 已有中文且非强制 → 保留
-        conn.execute("UPDATE sentences SET chinese_text = ? WHERE id = ?", (zh, r["id"]))
+        conn.execute("UPDATE sentences SET chinese_text = ? WHERE id = ?", (_clean_zh(zh), r["id"]))
         updated += 1
     conn.commit()
 
