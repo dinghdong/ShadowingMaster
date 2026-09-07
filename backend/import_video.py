@@ -407,6 +407,39 @@ def dedup_rolling(texts):
     return kept
 
 
+def strip_rolling_track(chunks):
+    """整条译文轨的「滚动差分」：按时间序把每个 chunk 里与前面已出现内容重合的前缀剥掉，
+    只留真正的增量，空增量的帧（10ms 桥接帧）直接丢弃。
+
+    为什么必须在轨级别做、而不能只在 align_chinese 的 bucket 内做：
+    滚动 CC 轨（YouTube 自动翻译的 zh-Hans 等）每帧 cue = 上一窗口旧行 + 本行新内容，
+    而 _zh_units() 会把连续若干帧聚成一条 unit —— 若这些帧未先做差分，重复就被
+    **固化进 unit 文本内部**，此后 bucket 级的 dedup_rolling 只能比对 item 之间，
+    对 item 内部的重复无能为力（实测出现「…收入将达到×3」）。
+    同时，旧行的时间戳落在本句区间、内容却属上一句，正是「每句句首残留上一句尾巴」的来源；
+    差分后每帧只剩增量，归属自然正确。
+
+    非滚动轨（人工上传 / TED 那种干净 cue）相邻帧无文本重叠 → 逐帧 rest 等于原文，不受影响。
+    安全阈值沿用 dedup_rolling：只剥离长度 ≥2 的重合，避免单字巧合吃掉真实内容。
+    """
+    out, acc = [], ""
+    for st, en, t in chunks:
+        t = (t or "").strip()
+        if not t:
+            continue
+        k = 0
+        if acc:
+            for i in range(min(len(acc), len(t)), 1, -1):
+                if acc.endswith(t[:i]):
+                    k = i
+                    break
+        rest = t[k:].strip()
+        if rest:
+            out.append((st, en, rest))
+            acc = join_texts([x[2] for x in out])
+    return out
+
+
 CJK_TERMINAL = "。？！…．?!;"
 
 
@@ -515,6 +548,11 @@ def align_chinese(sents, zh_chunks):
     - 完全没有重叠时（译文轨时间轴漂移/缺失片段），退化为取中心点最近的一条 cue，
       避免整句中文为空而把句子推回机器翻译。
     """
+    if not zh_chunks:
+        return []
+    # 滚动 CC 轨（自动翻译译文）先做全轨差分，去掉每帧重复携带的上一窗口旧内容。
+    # 必须放在 _zh_units 之前：unit 一旦把未去重的帧拼起来，重复就固化在 unit 内部了。
+    zh_chunks = strip_rolling_track(zh_chunks)
     if not zh_chunks:
         return []
 

@@ -5,9 +5,9 @@
   2. 某次解析中文字幕缺失、但 media/<id>.zh.vtt 仍在时补算
 
 用法：
-  python realign_chinese.py            # 处理所有缺中文或有 zh.vtt 的视频
-  python realign_chinese.py 13         # 只处理指定 video_id
-  python realign_chinese.py --all      # 强制重算全部（覆盖已有中文）
+  python realign_chinese.py            # 处理所有缺中文或有 zh.vtt 的视频（只填空句）
+  python realign_chinese.py 13         # 只处理指定 video_id（只填空句）
+  python realign_chinese.py 13 --force # 强制重算：覆盖已有中文，新译文为空则置空
 
 依赖 media/<youtube_id>.zh.vtt 存在；不存在则跳过（保持原中文不变，避免清空）。
 """
@@ -54,8 +54,11 @@ def realign(video_id: int, overwrite: bool = False) -> str:
     updated = 0
     for r, zh in zip(rows, zh_map):
         if not zh:
-            continue
-        if not overwrite and (r["chinese_text"] or "").strip():
+            if not overwrite:
+                continue  # 非强制模式：新译文为空则保留原中文（可能来自机翻补漏）
+            # 强制重算：忠实于轨，置空。否则历史上那些「重复/错位」的脏译文会一直留着，
+            # 看起来覆盖率很高，实际修完用户看到的还是旧的错误内容。
+        elif not overwrite and (r["chinese_text"] or "").strip():
             continue  # 已有中文且非强制 → 保留
         conn.execute("UPDATE sentences SET chinese_text = ? WHERE id = ?", (zh, r["id"]))
         updated += 1
