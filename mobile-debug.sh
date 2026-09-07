@@ -30,7 +30,8 @@ trap cleanup EXIT INT TERM
 # 系统 PATH 无 uvicorn，改用 workbuddy 托管 venv（已含 fastapi/uvicorn，并补装 oss2）
 PYBIN="/Users/dingdongdong/.workbuddy/binaries/python/envs/default/bin/python"
 cd "$ROOT/backend"
-CORS_ALLOW_ORIGINS="http://$MAC_IP:5173" \
+# 同时放行 localhost:5173（Mac 本机直接访问 localhost 时）与局域网 IP:5173（手机/同 Wi-Fi 设备）
+CORS_ALLOW_ORIGINS="http://localhost:5173,http://$MAC_IP:5173" \
   "$PYBIN" -m uvicorn main:app --reload --port 8000 --host 0.0.0.0 &
 BACK_PID=$!
 

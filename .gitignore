@@ -26,3 +26,9 @@ app.db.bak-*
 
 # 临时导入/排查产物（视频、字幕、SQL 转储），仅本机一次性使用，体积几十 MB
 .tmp_video31_backup/
+
+# macOS 元数据垃圾，勿提交
+.DS_Store
+
+# 根目录误装 npm 产物（项目无根 package.json 脚本），勿提交；frontend 自己的锁文件不受影响
+/package-lock.json
