@@ -14,10 +14,14 @@ on:
         required: false
         default: ""
       force:
-        description: "强制重算（覆盖已有中文；新译文为空则置空）"
+        description: "强制重算（覆盖已有中文；不填空则译文为空）"
         required: false
         type: boolean
         default: true
+      fill_from:
+        description: "备份时间戳或 latest：新译文为空时用该备份的旧值回填（留空则不回填）"
+        required: false
+        default: ""
 
 jobs:
   realign:
@@ -53,12 +57,14 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           INPUT_IDS: ${{ github.event.inputs.video_id }}
           INPUT_FORCE: ${{ github.event.inputs.force }}
+          INPUT_FILL: ${{ github.event.inputs.fill_from }}
         run: |
           # ssh 不会把 runner 的环境变量带进远程 shell，输入必须在本地先烘焙进命令串，
           # 否则远端拿到空值 → 退化成「全量 + 非强制」（第一版就栽在这里）。
           if [ "$INPUT_FORCE" = "true" ]; then FLAG="--force"; else FLAG=""; fi
+          if [ -n "$INPUT_FILL" ]; then FILL="--fill-from=$INPUT_FILL"; else FILL=""; fi
           IDS="$(printf '%s' "$INPUT_IDS" | tr -d ' ')"
-          echo ">> 目标 video_id='${IDS:-全部}' flag='${FLAG:-无}'"
+          echo ">> 目标 video_id='${IDS:-全部}' flag='${FLAG:-无}' fill='${FILL:-无}'"
 
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -e
@@ -72,10 +78,10 @@ jobs:
 
             # 以服务用户跑，避免把 app.db 属主改成 root 导致服务写不进去
             if [ -z '$IDS' ]; then
-              sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py $FLAG
+              sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py $FLAG $FILL
             else
               for id in \$(echo '$IDS' | tr ',' ' '); do
-                sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py \"\$id\" $FLAG
+                sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py \"\$id\" $FLAG $FILL
               done
             fi
           "
