@@ -1,0 +1,82 @@
+name: Realign Chinese subtitles
+
+# 用途：译文对齐/去重逻辑升级后，重算线上存量视频的 chinese_text。
+# 不重新下载视频、不重新解析 YouTube，只用服务器上已存在的 media/<id>.zh.vtt 重跑
+# import_video.align_chinese 并把结果写回 sentences 表。
+#
+# 触发：手动（Actions → Realign Chinese subtitles → Run workflow）。
+# 前置：代码已由 deploy.yml 部署到 /opt/shadowing/backend（否则跑的还是旧逻辑）。
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "video_id，多个用逗号分隔；留空 = 全部视频"
+        required: false
+        default: ""
+      force:
+        description: "强制重算（覆盖已有中文；新译文为空则置空）"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  realign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Guard required secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          miss=0
+          for v in VPS_HOST VPS_USER VPS_SSH_KEY; do
+            [ -n "${!v}" ] || { echo "ERROR: Secrets.$v 未配置"; miss=1; }
+          done
+          [ "$miss" = 0 ] || { echo "请补齐 Secrets 后重跑"; exit 1; }
+
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Run realign_chinese on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          INPUT_IDS: ${{ github.event.inputs.video_id }}
+          INPUT_FORCE: ${{ github.event.inputs.force }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" '
+            set -e
+            cd /opt/shadowing/backend
+            # 写库前先备份（保留最近 5 份）
+            ts=$(date +%Y%m%d-%H%M%S)
+            db=$(../venv/bin/python -c "from core.db import DB_PATH; print(DB_PATH)" 2>/dev/null || echo /opt/shadowing/app.db)
+            cp -a "$db" "$db.bak-realign-$ts"
+            ls -t "$db".bak-realign-* 2>/dev/null | tail -n +6 | xargs -r rm -f
+            echo ">> db backup: $db.bak-realign-$ts"
+
+            flag=""
+            [ "$INPUT_FORCE" = "true" ] && flag="--force"
+
+            # 以服务用户跑，避免把 app.db 属主改成 root 导致服务写不进去
+            if [ -z "$INPUT_IDS" ]; then
+              sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py $flag
+            else
+              for id in $(echo "$INPUT_IDS" | tr "," " "); do
+                sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py "$id" $flag
+              done
+            fi
+          '
+        # 注意：sudo -u 不继承 .env；core.config 的 DATA_DIR 若来自 systemd EnvironmentFile，
+        # 这里就要显式带上。当前单元 WorkingDirectory=backend 且默认路径即指向 /opt/shadowing，
+        # 故不额外注入；若线上 .env 设了 DATA_DIR，把上面命令改成：
+        #   sudo -u shadowing env HOME=/opt/shadowing DATA_DIR=/opt/shadowing ../venv/bin/python ...
