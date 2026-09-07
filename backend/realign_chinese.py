@@ -18,12 +18,28 @@ from pathlib import Path
 from import_video import MEDIA, DB_PATH, align_chinese, parse_vtt
 
 
+def _cols(conn, table: str) -> str:
+    """返回表的列名，失败诊断用（各环境 schema 可能不同）。"""
+    try:
+        return ",".join(r[1] for r in conn.execute(f"PRAGMA table_info({table})"))
+    except Exception as e:
+        return f"<读取失败 {e}>"
+
+
 def realign(video_id: int, overwrite: bool = False) -> str:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
 
+    # 不同环境的 schema 可能不同（如老库缺列），显式挑明而不是抛裸 IndexError
+    want = {"id", "youtube_id", "title"}
+    have = set(_cols(conn, "videos").split(","))
+    miss = want - have
+    if miss:
+        conn.close()
+        return f"#{video_id}: videos 缺列 {sorted(miss)}，实际列：{sorted(have)}"
+
     v = conn.execute(
-        "SELECT id, youtube_id, title, sentence_count FROM videos WHERE id = ?", (video_id,)
+        "SELECT id, youtube_id, title FROM videos WHERE id = ?", (video_id,)
     ).fetchone()
     if not v:
         conn.close()
@@ -39,8 +55,14 @@ def realign(video_id: int, overwrite: bool = False) -> str:
         conn.close()
         return f"#{video_id}: {zh_path.name} 解析出 0 条，跳过"
 
+    have_s = set(_cols(conn, "sentences").split(","))
+    miss_s = {"id", "start_time", "end_time", "english_text", "chinese_text"} - have_s
+    if miss_s:
+        conn.close()
+        return f"#{video_id}: sentences 缺列 {sorted(miss_s)}，实际列：{sorted(have_s)}"
+
     rows = conn.execute(
-        "SELECT id, sentence_index, start_time, end_time, english_text FROM sentences "
+        "SELECT id, sentence_index, start_time, end_time, english_text, chinese_text FROM sentences "
         "WHERE video_id = ? ORDER BY sentence_index",
         (video_id,),
     ).fetchall()
@@ -91,6 +113,8 @@ def main() -> None:
             print(realign(vid, overwrite=overwrite))
         except Exception as e:
             print(f"#{vid}: 失败 {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 if __name__ == "__main__":

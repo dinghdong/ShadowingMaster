@@ -54,29 +54,28 @@ jobs:
           INPUT_IDS: ${{ github.event.inputs.video_id }}
           INPUT_FORCE: ${{ github.event.inputs.force }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" '
+          # ssh 不会把 runner 的环境变量带进远程 shell，输入必须在本地先烘焙进命令串，
+          # 否则远端拿到空值 → 退化成「全量 + 非强制」（第一版就栽在这里）。
+          if [ "$INPUT_FORCE" = "true" ]; then FLAG="--force"; else FLAG=""; fi
+          IDS="$(printf '%s' "$INPUT_IDS" | tr -d ' ')"
+          echo ">> 目标 video_id='${IDS:-全部}' flag='${FLAG:-无}'"
+
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -e
             cd /opt/shadowing/backend
             # 写库前先备份（保留最近 5 份）
-            ts=$(date +%Y%m%d-%H%M%S)
-            db=$(../venv/bin/python -c "from core.db import DB_PATH; print(DB_PATH)" 2>/dev/null || echo /opt/shadowing/app.db)
-            cp -a "$db" "$db.bak-realign-$ts"
-            ls -t "$db".bak-realign-* 2>/dev/null | tail -n +6 | xargs -r rm -f
-            echo ">> db backup: $db.bak-realign-$ts"
-
-            flag=""
-            [ "$INPUT_FORCE" = "true" ] && flag="--force"
+            ts=\$(date +%Y%m%d-%H%M%S)
+            db=\$(../venv/bin/python -c 'from core.db import DB_PATH; print(DB_PATH)' 2>/dev/null || echo /opt/shadowing/app.db)
+            cp -a \"\$db\" \"\$db.bak-realign-\$ts\"
+            ls -t \"\$db\".bak-realign-* 2>/dev/null | tail -n +6 | xargs -r rm -f
+            echo \">> db backup: \$db.bak-realign-\$ts\"
 
             # 以服务用户跑，避免把 app.db 属主改成 root 导致服务写不进去
-            if [ -z "$INPUT_IDS" ]; then
-              sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py $flag
+            if [ -z '$IDS' ]; then
+              sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py $FLAG
             else
-              for id in $(echo "$INPUT_IDS" | tr "," " "); do
-                sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py "$id" $flag
+              for id in \$(echo '$IDS' | tr ',' ' '); do
+                sudo -u shadowing env HOME=/opt/shadowing ../venv/bin/python realign_chinese.py \"\$id\" $FLAG
               done
             fi
-          '
-        # 注意：sudo -u 不继承 .env；core.config 的 DATA_DIR 若来自 systemd EnvironmentFile，
-        # 这里就要显式带上。当前单元 WorkingDirectory=backend 且默认路径即指向 /opt/shadowing，
-        # 故不额外注入；若线上 .env 设了 DATA_DIR，把上面命令改成：
-        #   sudo -u shadowing env HOME=/opt/shadowing DATA_DIR=/opt/shadowing ../venv/bin/python ...
+          "
